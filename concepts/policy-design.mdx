@@ -1,0 +1,223 @@
+---
+title: Policy design
+description: Learn what policies are in RL and how to design robust policies that avoid infinite loops
+---
+
+## What is a policy?
+
+In Reinforcement Learning, a **policy** is a function that maps states to actions. It tells the agent what action to take in any given situation.
+
+```javascript
+// A policy is conceptually: state → action
+function policy(state) {
+  // ... logic to select an action ...
+  return action;
+}
+```
+
+Policies can be:
+- **Deterministic**: Always return the same action for a given state
+- **Stochastic**: Return actions with some probability distribution
+
+## The demo's bad policy
+
+This demo uses a deliberately flawed deterministic policy:
+
+```javascript
+function badPolicy(pos) {
+  const key = `${pos[0]},${pos[1]}`;
+  const policy = {
+    '0,0': 1,  // At (0,0), go right
+    '0,1': 1,  // At (0,1), go right
+    '0,2': 2,  // At (0,2), go down
+    '1,2': 3,  // At (1,2), go left ← BUG: should be 2 (down)
+    '1,0': 0,  // At (1,0), go up
+  };
+  return policy[key] ?? 1;  // Default to right if state not in policy
+}
+```
+
+### Action encoding
+
+Actions are encoded as integers:
+
+```javascript
+const ACTIONS = {
+  0: '↑ arriba',    // Up: row--
+  1: '→ derecha',   // Right: col++
+  2: '↓ abajo',     // Down: row++
+  3: '← izquierda'  // Left: col--
+};
+```
+
+<Note>
+Positions are represented as `[row, col]` where `(0,0)` is the top-left corner and `(2,2)` is the bottom-right.
+</Note>
+
+## The bug at position (1,2)
+
+The policy has a critical flaw at position `(1,2)`:
+
+```javascript
+'1,2': 3,  // ← BUG: should be 2 (down)
+```
+
+Let's visualize why this is wrong:
+
+```
+Grid layout:
+(0,0) (0,1) (0,2)
+(1,0) [1,1] (1,2)  ← Agent gets stuck here
+(2,0) (2,1) (2,2)  ← Goal is here
+
+[1,1] = wall
+```
+
+From position `(1,2)`, the agent should go **down** (action `2`) to reach the goal at `(2,2)`. Instead, the policy tells it to go **left** (action `3`), which tries to move into the wall at `(1,1)`.
+
+Because the wall blocks movement, the agent stays at `(1,2)` and tries the same action again on the next step, creating an infinite loop.
+
+## Why this policy fails
+
+This policy fails because it violates key principles of robust policy design:
+
+### 1. No exploration mechanism
+
+The policy is purely deterministic with no exploration:
+
+```javascript
+return policy[key] ?? 1;  // Always returns the same action for a given state
+```
+
+Once the agent reaches position `(1,2)`, it will **always** choose action `3` (left). There's no randomness or exploration to help it discover the correct action.
+
+### 2. No obstacle awareness
+
+The policy doesn't account for the wall:
+
+```javascript
+'1,2': 3,  // Tries to go left, ignoring the wall
+```
+
+A better policy would detect that the left action is blocked and choose an alternative.
+
+### 3. Incomplete state coverage
+
+The policy only defines actions for 5 out of 8 traversable states:
+
+```javascript
+const policy = {
+  '0,0': 1,
+  '0,1': 1,
+  '0,2': 2,
+  '1,2': 3,
+  '1,0': 0,
+  // Missing: (2,0), (2,1), (2,2)
+};
+```
+
+For undefined states, it defaults to action `1` (right), which may not be optimal.
+
+## Designing robust policies
+
+Here are best practices to avoid infinite loops:
+
+### 1. Add exploration
+
+Use **ε-greedy exploration** to occasionally deviate from the policy:
+
+```javascript
+function epsilonGreedyPolicy(pos, epsilon = 0.1) {
+  if (Math.random() < epsilon) {
+    // Explore: random action
+    return Math.floor(Math.random() * 4);
+  } else {
+    // Exploit: use policy
+    return badPolicy(pos);
+  }
+}
+```
+
+<Tip>
+Even a small exploration rate (ε = 0.1) can prevent most infinite loops while still mostly following the intended policy.
+</Tip>
+
+### 2. Validate actions
+
+Check if an action will cause progress before taking it:
+
+```javascript
+function validateAction(pos, action) {
+  const nextPos = simulateMove(pos, action);
+  
+  // Don't take actions that keep you in the same place
+  if (nextPos[0] === pos[0] && nextPos[1] === pos[1]) {
+    return false;
+  }
+  
+  return true;
+}
+```
+
+### 3. Use stochastic policies
+
+Instead of deterministic actions, return a probability distribution:
+
+```javascript
+function stochasticPolicy(pos) {
+  const key = `${pos[0]},${pos[1]}`;
+  const probabilities = {
+    '1,2': [0.1, 0.2, 0.6, 0.1],  // 60% down, 20% right, 10% up/left
+  };
+  
+  const probs = probabilities[key] ?? [0.25, 0.25, 0.25, 0.25];
+  return sampleFromDistribution(probs);
+}
+```
+
+This allows multiple actions from each state, reducing the risk of getting stuck.
+
+### 4. Include cycle detection
+
+As a safety net, track state visits and force exploration when cycles are detected (see [Cycle detection](/concepts/cycle-detection)).
+
+### 5. Set a max steps limit
+
+Always enforce a maximum episode length as a last resort (see [Max steps](/solutions/max-steps)).
+
+## Example: Fixing the policy
+
+Here's a corrected version of the policy:
+
+```javascript
+function goodPolicy(pos) {
+  const key = `${pos[0]},${pos[1]}`;
+  const policy = {
+    '0,0': 1,  // At (0,0), go right
+    '0,1': 1,  // At (0,1), go right
+    '0,2': 2,  // At (0,2), go down
+    '1,2': 2,  // At (1,2), go down ← FIXED
+    '1,0': 0,  // At (1,0), go up
+    '2,0': 1,  // At (2,0), go right
+    '2,1': 1,  // At (2,1), go right
+  };
+  return policy[key] ?? 1;
+}
+```
+
+The only change is line 5: `'1,2': 2` instead of `'1,2': 3`. This single fix allows the agent to reach the goal.
+
+<Warning>
+In real RL systems, policies are learned from data and may contain subtle bugs that aren't obvious from inspection. Always test policies thoroughly and include safeguards.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="See the bug in action" icon="play" href="/demo/scenarios">
+    Watch the flawed policy cause an infinite loop
+  </Card>
+  <Card title="View the source code" icon="code" href="/implementation/policy">
+    Explore the full implementation of badPolicy
+  </Card>
+</CardGroup>

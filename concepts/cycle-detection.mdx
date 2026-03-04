@@ -1,0 +1,172 @@
+---
+title: Cycle detection
+description: Learn how cycle detection identifies infinite loops and forces exploration to escape them
+---
+
+## What is cycle detection?
+
+Cycle detection is a safeguard technique that tracks how many times an agent has visited each state. When a state has been visited more than a threshold number of times, the system detects a potential cycle and forces the agent to explore alternative actions.
+
+<Note>
+Cycle detection breaks infinite loops by intervening when the agent shows signs of being stuck.
+</Note>
+
+## How it works
+
+The cycle detection algorithm follows these steps:
+
+<Steps>
+  <Step title="Track state history">
+    The agent maintains a history array of all visited states:
+
+    ```javascript
+    const state = {
+      pos: [0, 0],
+      history: [],
+      // ... other fields
+    };
+    ```
+
+    Each time the agent takes a step, its current position is added to the history:
+
+    ```javascript
+    s.history.push([...s.pos]);
+    ```
+  </Step>
+
+  <Step title="Count state visits">
+    Before taking an action, count how many times the current state appears in the history:
+
+    ```javascript
+    const visits = s.history.filter(
+      h => h[0] === s.pos[0] && h[1] === s.pos[1]
+    ).length;
+    ```
+  </Step>
+
+  <Step title="Compare against threshold">
+    Check if the visit count exceeds the cycle detection threshold:
+
+    ```javascript
+    const CYCLE_THRESHOLD = 2;
+    
+    if (visits >= CYCLE_THRESHOLD) {
+      // Cycle detected!
+    }
+    ```
+
+    In this demo, the threshold is set to `2`, meaning if a state is visited twice, the system assumes a cycle is forming.
+  </Step>
+
+  <Step title="Force exploration">
+    When a cycle is detected, instead of following the flawed policy, the agent takes a random alternative action:
+
+    ```javascript
+    if (visits >= CYCLE_THRESHOLD) {
+      const original = badPolicy(s.pos);
+      const options = [0, 1, 2, 3].filter(a => a !== original);
+      action = options[Math.floor(Math.random() * options.length)];
+      escaped = true;
+      s.escapes++;
+    }
+    ```
+
+    This forces the agent to try a different action, potentially breaking the cycle.
+  </Step>
+</Steps>
+
+## The CYCLE_THRESHOLD constant
+
+The cycle detection threshold is configurable:
+
+```javascript
+const CYCLE_THRESHOLD = 2;
+```
+
+**Lower threshold (1-2)**:
+- More aggressive cycle detection
+- Intervenes quickly when repetition occurs
+- May cause false positives (intervening when no real cycle exists)
+- Good for environments where legitimate revisits are rare
+
+**Higher threshold (3-5+)**:
+- More conservative cycle detection
+- Allows the agent to revisit states multiple times before intervening
+- Fewer false positives
+- Agent may waste more steps before cycle is detected
+
+<Tip>
+In this demo, a threshold of 2 works well because the optimal path never legitimately revisits the same state. In more complex environments, you might need a higher threshold.
+</Tip>
+
+## Forced exploration
+
+When a cycle is detected, the demo uses **forced random exploration**:
+
+```javascript
+const original = badPolicy(s.pos);  // Get the flawed policy's action
+const options = [0, 1, 2, 3].filter(a => a !== original);  // All other actions
+action = options[Math.floor(Math.random() * options.length)];  // Pick one randomly
+```
+
+This approach:
+- Excludes the action that caused the cycle (the flawed policy's choice)
+- Randomly selects from the remaining 3 actions
+- Gives the agent a chance to discover a better path
+
+<Warning>
+Forced exploration doesn't guarantee the agent will find the optimal path immediately. It just gives the agent a chance to escape the cycle. The agent might need multiple escapes to reach the goal.
+</Warning>
+
+## Visualizing cycle detection
+
+In the [live demo](https://jhonzacipa.github.io/rl-cycle-demo/), watch the right panel ("Con Detección de Ciclos") to see cycle detection in action:
+
+1. The agent navigates to position `(1,2)`
+2. The flawed policy tells it to go left (into the wall)
+3. After visiting `(1,2)` twice, cycle detection triggers
+4. The log shows: `⚠️ Ciclo en (1,2) visitado 2x → exploración forzada`
+5. The agent tries a random alternative action (likely down or right)
+6. If it goes down, it reaches the goal!
+
+The "Escapes" counter tracks how many times cycle detection intervened.
+
+## When to use cycle detection
+
+Cycle detection is most useful when:
+
+✅ **You have a deterministic policy** — The same state always produces the same action
+
+✅ **Policy errors are possible** — The policy might have bugs or edge cases
+
+✅ **You can't modify the policy** — You're using a pre-trained or frozen policy
+
+✅ **Computational cost is acceptable** — Tracking state history has memory overhead
+
+❌ **You already have exploration** — If using ε-greedy or another exploration strategy, cycle detection may be redundant
+
+❌ **Legitimate revisits are common** — In some environments, the optimal path revisits states (e.g., backtracking)
+
+## Comparison with other techniques
+
+| Technique | Detects cycles? | Prevents cycles? | Overhead |
+|-----------|----------------|------------------|----------|
+| **Cycle detection** | ✅ Yes | ✅ Yes (via forced exploration) | Medium (history tracking) |
+| **Max steps** | ❌ No | ✅ Yes (terminates episode) | Low (simple counter) |
+| **ε-greedy** | ❌ No | ⚠️ Reduces likelihood | Low (random number) |
+| **Step penalty** | ❌ No | ⚠️ Discourages long paths | None (built into rewards) |
+
+<Tip>
+Cycle detection is often combined with max steps as a defense-in-depth strategy. Max steps provides a hard limit, while cycle detection tries to fix the problem before the limit is reached.
+</Tip>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="See it in action" icon="play" href="/demo/scenarios">
+    Compare the scenarios side-by-side in the demo
+  </Card>
+  <Card title="Implementation details" icon="code" href="/implementation/architecture">
+    Explore the source code for cycle detection
+  </Card>
+</CardGroup>

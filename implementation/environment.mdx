@@ -1,0 +1,185 @@
+---
+title: "Environment Step Function"
+description: "How the envStep function simulates the grid world dynamics, boundaries, collisions, and rewards"
+---
+
+## The envStep Function
+
+The `envStep` function simulates the environment's response to an agent action. It implements the core **transition dynamics** of the grid world. Here's the complete implementation:
+
+```javascript
+function envStep(pos, action) {
+  let [r, c] = pos;
+  if (action === 0) r--;
+  else if (action === 1) c++;
+  else if (action === 2) r++;
+  else if (action === 3) c--;
+
+  r = Math.max(0, Math.min(SIZE - 1, r));
+  c = Math.max(0, Math.min(SIZE - 1, c));
+
+  if (r === WALL[0] && c === WALL[1]) { r = pos[0]; c = pos[1]; }
+
+  const done = (r === GOAL[0] && c === GOAL[1]);
+  const reward = done ? 10 : -0.1;
+
+  return { pos: [r, c], reward, done };
+}
+```
+
+This function is the **heart of the simulation**—it defines what happens when the agent takes an action.
+
+## Function Signature
+
+```javascript
+envStep(pos, action) → { pos, reward, done }
+```
+
+**Inputs:**
+- `pos`: Current position as `[row, col]` array
+- `action`: Integer action (0=up, 1=right, 2=down, 3=left)
+
+**Returns:**
+- `pos`: New position as `[row, col]` array
+- `reward`: Numerical reward for this transition
+- `done`: Boolean indicating episode termination
+
+## Step 1: Movement Calculation
+
+The function first calculates the **intended** new position based on the action:
+
+```javascript
+let [r, c] = pos;
+if (action === 0) r--;      // Up: decrease row
+else if (action === 1) c++; // Right: increase column
+else if (action === 2) r++; // Down: increase row
+else if (action === 3) c--; // Left: decrease column
+```
+
+This uses destructuring to extract `[row, col]` into `r` and `c`, then modifies them based on the action.
+
+## Step 2: Boundary Checking
+
+The grid has hard boundaries at `[0, SIZE-1]`. The function **clamps** positions to stay within bounds:
+
+```javascript
+r = Math.max(0, Math.min(SIZE - 1, r));
+c = Math.max(0, Math.min(SIZE - 1, c));
+```
+
+Breakdown:
+- `Math.min(SIZE - 1, r)`: Ensures `r ≤ 2` (prevents going off the bottom/right)
+- `Math.max(0, ...)`: Ensures `r ≥ 0` (prevents going off the top/left)
+
+Example: If the agent is at `(0,1)` and tries to go up (action 0), `r` would become `-1`, but `Math.max(0, -1)` clamps it back to `0`.
+
+## Step 3: Wall Collision Detection
+
+The grid has an immovable wall at position `WALL = [1,1]`. If the agent tries to enter the wall, it **stays in place**:
+
+```javascript
+if (r === WALL[0] && c === WALL[1]) { r = pos[0]; c = pos[1]; }
+```
+
+This checks if the new position `(r, c)` equals the wall position `(1, 1)`. If so, it **reverts** to the original position `pos`.
+
+Example:
+- Agent at `(1,0)`, action right (1) → tries to go to `(1,1)` → wall collision → stays at `(1,0)`
+- Agent at `(1,2)`, action left (3) → tries to go to `(1,1)` → wall collision → stays at `(1,2)` ⚠️ **This is where the cycle occurs**
+
+## Step 4: Reward Structure
+
+The reward function is **sparse** with a large goal reward:
+
+```javascript
+const done = (r === GOAL[0] && c === GOAL[1]);
+const reward = done ? 10 : -0.1;
+```
+
+- **Reaching the goal** `(2,2)`: Reward = `+10`, episode ends (`done = true`)
+- **Any other step**: Reward = `-0.1` (small negative reward to encourage shorter paths)
+
+This reward structure:
+- **Incentivizes** reaching the goal quickly
+- **Penalizes** wandering or getting stuck
+- Creates a **shortest-path** optimal policy
+
+## Step 5: Return Format
+
+The function returns an object with three fields:
+
+```javascript
+return { pos: [r, c], reward, done };
+```
+
+- `pos`: The new position after applying action and checking collisions
+- `reward`: The immediate reward for this transition
+- `done`: Boolean flag (true only when goal is reached)
+
+## Example Transitions
+
+Here are some example calls to `envStep`:
+
+```javascript
+// Starting position, go right
+envStep([0,0], 1)
+// → { pos: [0,1], reward: -0.1, done: false }
+
+// Try to go through wall
+envStep([1,2], 3)
+// → { pos: [1,2], reward: -0.1, done: false }  ← stays in place!
+
+// Try to go off grid
+envStep([0,0], 0)
+// → { pos: [0,0], reward: -0.1, done: false }  ← clamped to boundary
+
+// Reach the goal
+envStep([1,2], 2)
+// → { pos: [2,2], reward: 10, done: true }  ← episode ends!
+```
+
+## Grid World Visualization
+
+Here's the 3×3 grid with coordinates:
+
+```
+  0   1   2
+┌───┬───┬───┐
+│0,0│0,1│0,2│ 0
+├───┼───┼───┤
+│1,0│ W │1,2│ 1
+├───┼───┼───┤
+│2,0│2,1│2,2│ 2
+└───┴───┴───┘
+
+W = Wall at (1,1)
+Goal at (2,2)
+```
+
+## Deterministic vs Stochastic Environments
+
+This implementation is **deterministic**—the same action in the same state always produces the same result. In stochastic environments, you might add:
+
+```javascript
+// Example: 80% chance of intended action, 20% random slip
+if (Math.random() < 0.2) {
+  action = Math.floor(Math.random() * 4);
+}
+```
+
+But for this demo, determinism makes the cycle problem more obvious and predictable.
+
+<Note>
+The `envStep` function is **pure**—it doesn't modify the input `pos` array, and has no side effects. This makes it easy to test and reason about. You can call it repeatedly with the same inputs and always get the same output.
+</Note>
+
+## Extending the Environment
+
+To create more complex environments, you could:
+
+1. **Add multiple walls**: Check against an array of wall positions
+2. **Variable rewards**: Different cells give different rewards
+3. **Moving obstacles**: Walls that change position over time
+4. **Larger grids**: Increase `SIZE` constant
+5. **Diagonal movement**: Add actions 4-7 for diagonal moves
+6. **Terminal states**: Multiple goal positions with different rewards

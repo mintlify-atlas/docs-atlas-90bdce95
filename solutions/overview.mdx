@@ -1,0 +1,155 @@
+---
+title: "Prevention Techniques Overview"
+description: "Learn the six main techniques for preventing infinite loops in reinforcement learning agents"
+---
+
+## The Infinite Loop Problem
+
+In reinforcement learning, an agent follows a **policy** that maps states to actions. When the policy contains flaws, the agent can repeat the same actions indefinitely without ever reaching its goal. This is a well-known failure mode with real implications for RL systems, including LLM-based agents.
+
+<Warning>
+  Without safeguards, a deterministic policy with even a single bug can trap your agent in an infinite loop, wasting compute resources and preventing goal completion.
+</Warning>
+
+## Six Prevention Techniques
+
+The following techniques help prevent or escape infinite loops in RL agents. Each has different trade-offs in terms of simplicity, effectiveness, and applicability.
+
+### 1. Max Steps
+
+**Terminate episodes after N steps** — the simplest and most essential safeguard.
+
+- **How it works**: Set a hard limit on episode length (e.g., 30 steps)
+- **Pros**: Dead simple, guaranteed termination, prevents runaway costs
+- **Cons**: Arbitrary cutoff may stop valid long episodes
+- **Best for**: Every RL system (baseline protection)
+
+<Tip>
+  Always implement max steps as your first line of defense. You can combine it with other techniques for better exploration.
+</Tip>
+
+### 2. Step Penalty
+
+**Small negative reward per action** to incentivize shorter paths.
+
+- **How it works**: Each action receives a small penalty (e.g., -0.1)
+- **Pros**: Naturally discourages loops through reward structure
+- **Cons**: Doesn't prevent loops, only makes them less rewarding
+- **Best for**: Training agents to find efficient solutions
+
+### 3. Cycle Detection
+
+**Track state visits and force exploration on repetition.**
+
+- **How it works**: Count how many times you've visited each state; take random action when threshold exceeded
+- **Pros**: Directly addresses the loop problem, enables escape
+- **Cons**: Requires state tracking, adds memory overhead
+- **Best for**: Discrete state spaces where you can detect revisits
+
+<Note>
+  The demo uses cycle detection with a threshold of 2 visits. When the agent reaches position (1,2) twice, it forces a random exploration action instead of following the flawed policy.
+</Note>
+
+### 4. ε-Greedy Exploration
+
+**With probability ε, take a random action** instead of the policy's choice.
+
+- **How it works**: On each step, flip a coin with probability ε; if heads, explore randomly
+- **Pros**: Simple, prevents deterministic loops, aids exploration
+- **Cons**: Random actions may be suboptimal, adds noise
+- **Best for**: Training phase when you want exploration
+
+### 5. Curiosity-Driven Exploration
+
+**Intrinsic reward for visiting novel states** encourages the agent to avoid repetition.
+
+- **How it works**: Give bonus reward for states the agent hasn't seen recently
+- **Pros**: Intelligent exploration guided by novelty
+- **Cons**: Complex to implement, requires tracking state novelty
+- **Best for**: Large state spaces where you want systematic exploration
+
+### 6. Discount Factor (γ < 1)
+
+**Future rewards decay exponentially**, discouraging long cycles.
+
+- **How it works**: Multiply rewards by γ^t where t is time steps into future
+- **Pros**: Standard RL technique, naturally limits horizon
+- **Cons**: Doesn't prevent loops, only reduces their value
+- **Best for**: Training with temporal credit assignment
+
+## Comparison Table
+
+| Technique | Complexity | Prevention | Exploration | Memory |
+|-----------|------------|------------|-------------|---------|
+| **Max Steps** | Very Low | ✅ Hard stop | ❌ No | Minimal |
+| **Step Penalty** | Very Low | ⚠️ Indirect | ❌ No | None |
+| **Cycle Detection** | Medium | ✅ Active escape | ✅ Forced | High |
+| **ε-Greedy** | Low | ✅ Probabilistic | ✅ Random | None |
+| **Curiosity** | High | ⚠️ Indirect | ✅ Intelligent | High |
+| **Discount Factor** | Low | ⚠️ Indirect | ❌ No | None |
+
+## Recommended Combinations
+
+<AccordionGroup>
+  <Accordion title="Minimal Protection (Production)">
+    **Max Steps** alone provides guaranteed termination with zero complexity. Use when you need reliable bounds on execution time.
+
+    ```javascript
+    const MAX_STEPS = 30;
+    if (steps >= MAX_STEPS) {
+      terminateEpisode();
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Training Setup">
+    **Max Steps + ε-Greedy + Step Penalty** gives exploration during training with resource protection.
+
+    ```javascript
+    const epsilon = 0.1;
+    const action = Math.random() < epsilon 
+      ? randomAction() 
+      : policy(state);
+    ```
+  </Accordion>
+
+  <Accordion title="Robust Deployment">
+    **Max Steps + Cycle Detection** actively breaks loops while maintaining deterministic execution when not stuck.
+
+    ```javascript
+    const visits = history.filter(s => equals(s, currentState)).length;
+    if (visits >= CYCLE_THRESHOLD) {
+      return exploreRandomly();
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## LLM Agent Applications
+
+These same techniques apply to LLM-based agents that use tools:
+
+- An agent might repeatedly reformulate a search query
+- Retry a failed API call indefinitely
+- Loop through the same reasoning steps
+
+<Note>
+  Frameworks like LangChain and AutoGen implement iteration limits (max steps) for exactly this reason. The RL Cycle Demo demonstrates why this protection is essential.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Max Steps Deep Dive" icon="clock" href="/solutions/max-steps">
+    Learn how the demo implements the 30-step limit
+  </Card>
+  <Card title="Cycle Detection" icon="rotate" href="/solutions/cycle-detection">
+    Understand the visit counting and forced exploration logic
+  </Card>
+  <Card title="ε-Greedy Explained" icon="dice" href="/solutions/epsilon-greedy">
+    When and how to use probabilistic exploration
+  </Card>
+  <Card title="Other Techniques" icon="lightbulb" href="/solutions/other-techniques">
+    Step penalties, curiosity, and discount factors
+  </Card>
+</CardGroup>

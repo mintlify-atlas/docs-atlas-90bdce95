@@ -1,0 +1,167 @@
+---
+title: Demo Controls
+description: Learn how to interact with the RL cycle detection demo
+---
+
+The demo provides interactive controls that let you run, step through, and reset the agent's navigation attempts in both panels.
+
+## Control Buttons
+
+### ▶ Run Button
+
+The **Run** button executes the demo continuously until the agent reaches the goal or hits the step limit.
+
+```javascript
+function runDemo(panelId) {
+  const s = state[panelId];
+  if (s.running) { stopDemo(panelId); return; }
+  if (s.done || s.steps >= MAX_STEPS) resetDemo(panelId);
+
+  s.running = true;
+  setStatus(panelId, 'running', 'En ejecución...');
+
+  function tick() {
+    if (!s.running) return;
+    const canContinue = doStep(panelId);
+    if (canContinue) {
+      const speed = parseInt(document.getElementById(`speed${panelId}`).value);
+      s.interval = setTimeout(tick, speed);
+    } else {
+      s.running = false;
+    }
+  }
+  tick();
+}
+```
+
+<Steps>
+  <Step title="Click to Start">
+    Click the **▶ Ejecutar** button to begin continuous execution. The agent will take actions automatically based on the configured speed.
+  </Step>
+  
+  <Step title="Observe Behavior">
+    Watch as the agent moves through the grid. Panel 1 will get stuck in a loop, while Panel 2 escapes cycles and reaches the goal.
+  </Step>
+  
+  <Step title="Click Again to Pause">
+    Click the button again while running to pause execution. The status changes from "running" to "paused".
+  </Step>
+</Steps>
+
+### → Step Button
+
+The **Step** button advances the agent by exactly one action, giving you fine-grained control.
+
+```javascript
+function stepDemo(panelId) {
+  const s = state[panelId];
+  if (s.running) { stopDemo(panelId); return; }
+  if (s.done || s.steps >= MAX_STEPS) { resetDemo(panelId); return; }
+  setStatus(panelId, 'running', 'En ejecución...');
+  doStep(panelId);
+}
+```
+
+**Use this when you want to:**
+- Examine the agent's behavior action-by-action
+- See exactly when cycle detection triggers (Panel 2)
+- Understand why the agent gets stuck (Panel 1)
+
+<Note>
+  Each step executes one action and updates the grid, stats, and log immediately. There's no delay between your click and the result.
+</Note>
+
+### ↺ Reset Button
+
+The **Reset** button returns the demo to its initial state.
+
+```javascript
+function resetDemo(panelId) {
+  stopDemo(panelId);
+  const s = state[panelId];
+  s.pos = [...START];
+  s.steps = 0;
+  s.reward = 0;
+  s.repeats = 0;
+  s.escapes = 0;
+  s.history = [];
+  s.done = false;
+
+  document.getElementById(`log${panelId}`).innerHTML = '';
+  setStatus(panelId, 'idle', 'Esperando');
+  renderGrid(panelId);
+  renderStats(panelId);
+}
+```
+
+Resetting clears:
+- Agent position (returns to `(0,0)`)
+- Step count
+- Reward accumulation
+- Repeat/escape counters
+- Movement history
+- Log entries
+
+**Use reset to:**
+- Start a fresh run after the agent completes or gets stuck
+- Compare different scenarios from the same starting point
+- Clear the log when it becomes too long
+
+## Speed Slider
+
+The speed slider controls how fast the agent moves during continuous execution:
+
+```html
+<input type="range" min="50" max="800" value="350" id="speed1">
+```
+
+- **Range**: 50ms to 800ms per step
+- **Default**: 350ms per step
+- **Effect**: Only applies when using the Run button, not Step button
+
+```javascript
+function tick() {
+  if (!s.running) return;
+  const canContinue = doStep(panelId);
+  if (canContinue) {
+    const speed = parseInt(document.getElementById(`speed${panelId}`).value);
+    s.interval = setTimeout(tick, speed);
+  }
+}
+```
+
+<Tabs>
+  <Tab title="Fast (50ms)">
+    Set the slider to the left for rapid execution. Good for seeing the overall behavior quickly, but harder to follow individual actions.
+  </Tab>
+  
+  <Tab title="Medium (350ms)">
+    The default speed. Provides a good balance between speed and observability. You can follow the agent's path while still moving at a reasonable pace.
+  </Tab>
+  
+  <Tab title="Slow (800ms)">
+    Set the slider to the right for slow, deliberate movement. Ideal for presentations or when you want to carefully observe each decision.
+  </Tab>
+</Tabs>
+
+## Real-World Example
+
+Here's what happens when you interact with Panel 1 (no cycle detection):
+
+1. **Click Run**: Agent starts at `(0,0)` and moves right to `(0,1)`
+2. **After 4 steps**: Agent reaches position `(1,2)`
+3. **Step 5 onward**: Agent repeatedly tries to move left (action 3) but hits the wall
+4. **Log shows**: `[5] ← → (1,2) (bloqueado)` repeated
+5. **At step 30**: Demo stops with "Límite de 30 pasos alcanzado" 
+
+In Panel 2 with cycle detection:
+
+1. **Steps 1-4**: Same as Panel 1
+2. **Step 5**: Cycle detected at `(1,2)` after 2 visits
+3. **Log shows**: `⚠️ Ciclo en (1,2) visitado 2x → exploración forzada`
+4. **Agent escapes**: Takes a random action instead of the policy's bad choice
+5. **Reaches goal**: Successfully navigates to `(2,2)`
+
+<Note>
+  The controls are independent for each panel. You can run Panel 1 while stepping through Panel 2, or have them both running at different speeds.
+</Note>

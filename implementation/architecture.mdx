@@ -1,0 +1,121 @@
+---
+title: "Architecture Overview"
+description: "Understand the overall structure, state management, and dual-panel design of the RL Cycle Demo"
+---
+
+## Overall Structure
+
+The RL Cycle Demo is built as a **single-page application** using vanilla JavaScript, HTML5, and CSS3. There are no external dependencies or frameworks—everything runs in the browser.
+
+The architecture consists of:
+- **HTML structure**: Two parallel grid panels with controls
+- **CSS styling**: Custom design system with CSS variables and animations
+- **JavaScript logic**: State management, policy execution, environment simulation, and rendering
+
+## State Management
+
+The entire application state is managed through a single `state` object that tracks both panels independently:
+
+```javascript
+const state = {
+  1: { pos: [...START], steps: 0, reward: 0, repeats: 0, history: [], running: false, done: false, interval: null },
+  2: { pos: [...START], steps: 0, reward: 0, escapes: 0, history: [], running: false, done: false, interval: null }
+};
+```
+
+Each panel (1 and 2) maintains:
+- `pos`: Current agent position `[row, col]`
+- `steps`: Number of steps taken
+- `reward`: Cumulative reward
+- `repeats`: (Panel 1) Count of blocked movements
+- `escapes`: (Panel 2) Count of cycle detection escapes
+- `history`: Array of visited positions
+- `running`: Boolean flag for animation state
+- `done`: Episode completion flag
+- `interval`: Timer reference for continuous execution
+
+## Key Constants
+
+The demo uses several constants defined at the top of the script:
+
+```javascript
+const SIZE = 3;
+const WALL = [1, 1];
+const GOAL = [2, 2];
+const START = [0, 0];
+const ACTIONS = { 0: '↑ arriba', 1: '→ derecha', 2: '↓ abajo', 3: '← izquierda' };
+const ACTION_ARROWS = { 0: '↑', 1: '→', 2: '↓', 3: '←' };
+const MAX_STEPS = 30;
+const CYCLE_THRESHOLD = 2;
+```
+
+- **SIZE**: Grid dimensions (3×3)
+- **WALL**: Immovable wall position
+- **GOAL**: Target position
+- **START**: Agent starting position
+- **ACTIONS**: Action-to-text mapping
+- **ACTION_ARROWS**: Action-to-arrow symbols
+- **MAX_STEPS**: Maximum episode length
+- **CYCLE_THRESHOLD**: Number of visits to trigger cycle detection
+
+## Main Functions
+
+The codebase is organized into focused functions:
+
+### Core Logic Functions
+
+1. **`badPolicy(pos)`** - Returns the action for a given position (contains the deliberate bug)
+2. **`envStep(pos, action)`** - Simulates environment dynamics and returns `{pos, reward, done}`
+3. **`doStep(panelId)`** - Executes one step of the agent-environment loop
+
+### Rendering Functions
+
+4. **`renderGrid(panelId)`** - Renders the 3×3 grid with agent, walls, goal, and trails
+5. **`renderStats(panelId)`** - Updates the stats display (steps, reward, repeats/escapes)
+6. **`addLog(panelId, html)`** - Appends a log entry to the panel's log
+7. **`setStatus(panelId, type, text)`** - Updates the status badge
+
+### Control Functions
+
+8. **`runDemo(panelId)`** - Starts continuous execution with timing loop
+9. **`stopDemo(panelId)`** - Pauses execution
+10. **`stepDemo(panelId)`** - Executes a single step (button handler)
+11. **`resetDemo(panelId)`** - Resets panel to initial state
+
+## Dual-Panel Design Pattern
+
+The demo uses a **parallel comparison pattern** where both panels run the same environment and policy, but with different cycle handling strategies:
+
+- **Panel 1 (Red)**: No cycle detection—demonstrates the infinite loop problem
+- **Panel 2 (Green)**: Cycle detection enabled—shows the solution
+
+Both panels:
+- Share the same grid environment (`SIZE`, `WALL`, `GOAL`, `START`)
+- Use the same `badPolicy` function
+- Call the same `envStep` function
+- Differ only in the cycle detection logic within `doStep`
+
+This pattern allows users to **visually compare** the behavior side-by-side in real-time.
+
+## Code Organization
+
+The JavaScript code follows this structure:
+
+1. **Constants** (lines 642-650): Environment configuration
+2. **State initialization** (lines 652-655): Global state object
+3. **Policy definition** (lines 657-666): `badPolicy` function
+4. **Environment step** (lines 668-685): `envStep` function
+5. **Rendering** (lines 687-757): Grid, stats, log, status rendering
+6. **Step logic** (lines 760-811): `doStep` with cycle detection
+7. **Control handlers** (lines 813-867): Run, stop, reset functions
+8. **Event listeners** (lines 869-875): Speed slider handlers
+9. **Initialization** (lines 877-881): Initial render calls
+
+You can navigate through the code following the function call chain:
+```
+runDemo → tick → doStep → envStep + renderGrid + renderStats
+```
+
+<Note>
+The architecture is intentionally simple to make it easy to understand, modify, and extend. Adding new features (like different policies or larger grids) requires minimal changes.
+</Note>

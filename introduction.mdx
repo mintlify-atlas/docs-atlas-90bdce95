@@ -1,0 +1,204 @@
+---
+title: Introduction
+description: Understand how reinforcement learning agents can get trapped in infinite loops and how to prevent it
+mode: custom
+---
+
+<div className="relative overflow-hidden dark:bg-[#0f1117] bg-white py-20">
+  <div className="absolute inset-0 bg-gradient-to-br from-[#ff4d6a]/10 via-transparent to-[#60a5fa]/10" />
+  
+  <div className="relative max-w-6xl mx-auto px-6 lg:px-8">
+    <div className="lg:grid lg:grid-cols-12 lg:gap-12 items-center">
+      <div className="lg:col-span-7">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border dark:border-[#27272a] border-gray-200 dark:bg-[#1a1d27]/50 bg-gray-50 mb-6">
+          <span className="text-sm font-mono dark:text-gray-400 text-gray-600">Reinforcement Learning</span>
+          <span className="text-[#ff4d6a]">•</span>
+          <span className="text-sm font-mono dark:text-gray-400 text-gray-600">Interactive Demo</span>
+        </div>
+        
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold dark:text-white text-gray-900 mb-6">
+          Can an RL Agent Get Stuck in an Infinite Loop?
+        </h1>
+        
+        <p className="text-lg sm:text-xl dark:text-gray-400 text-gray-600 mb-8 max-w-2xl">
+          Watch how a poorly designed policy traps an agent forever, and discover how cycle detection can rescue it.
+        </p>
+        
+        <div className="flex flex-wrap gap-4">
+          <a 
+            href="/quickstart" 
+            className="inline-flex items-center px-6 py-3 rounded-lg bg-[#ff4d6a] text-white font-semibold hover:bg-[#ff4d6a]/90 transition-colors"
+          >
+            Get Started
+            <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+          <a 
+            href="https://jhonzacipa.github.io/rl-cycle-demo/" 
+            target="_blank"
+            className="inline-flex items-center px-6 py-3 rounded-lg border dark:border-[#27272a] border-gray-200 dark:bg-white/5 bg-gray-50 dark:text-white text-gray-900 font-semibold dark:hover:border-[#ff4d6a] hover:border-[#ff4d6a] transition-colors"
+          >
+            Live Demo
+            <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      </div>
+      
+      <div className="hidden lg:block lg:col-span-5">
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#ff4d6a] to-[#60a5fa] rounded-2xl blur-3xl opacity-20" />
+          <div className="relative dark:bg-[#1a1d27] bg-gray-50 rounded-2xl border dark:border-[#27272a] border-gray-200 p-8">
+            <div className="grid grid-cols-3 gap-2">
+              {[...Array(9)].map((_, i) => (
+                <div 
+                  key={i}
+                  className={`aspect-square rounded-lg flex items-center justify-center text-2xl
+                    ${i === 4 ? 'dark:bg-[#242838] bg-gray-200 opacity-50' : 
+                      i === 8 ? 'dark:bg-[#4ade80]/10 bg-green-100 border border-[#4ade80]/30' :
+                      i === 0 ? 'dark:bg-[#60a5fa]/10 bg-blue-100 border border-[#60a5fa]/30' :
+                      'dark:bg-[#0f1117] bg-white border dark:border-[#27272a] border-gray-200'}`}
+                >
+                  {i === 0 && '🤖'}
+                  {i === 8 && '🏆'}
+                  {i === 4 && '🧱'}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+    Quick start
+  </h2>
+  <p className="text-base dark:text-gray-400 text-gray-600 mb-8">
+    Get up and running with the demo in minutes
+  </p>
+
+  <Steps>
+    <Step title="Open the live demo">
+      Navigate to [jhonzacipa.github.io/rl-cycle-demo](https://jhonzacipa.github.io/rl-cycle-demo/) in your browser. No installation required.
+    </Step>
+
+    <Step title="Run the simulations">
+      Click **▶ Ejecutar** on both panels to see the difference between a stuck agent and one with cycle detection.
+
+      The left panel shows an agent with no protection — it gets stuck repeating the same action. The right panel shows the same agent with cycle detection enabled, which escapes the loop and reaches the goal.
+    </Step>
+
+    <Step title="Explore the controls">
+      Use the **→ Paso** button to step through the simulation one action at a time, or adjust the speed slider to control the animation speed (50ms–800ms).
+    </Step>
+
+    <Step title="Clone the repository">
+      To run the demo locally or explore the source code:
+
+      ```bash
+      git clone https://github.com/JhonZacipa/rl-cycle-demo.git
+      cd rl-cycle-demo
+      open index.html
+      ```
+    </Step>
+  </Steps>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+    Explore the concepts
+  </h2>
+  <p className="text-base dark:text-gray-400 text-gray-600 mb-8">
+    Learn about reinforcement learning policies, cycle detection, and prevention strategies
+  </p>
+
+  <CardGroup cols={3}>
+    <Card title="Infinite loops" icon="repeat" href="/concepts/infinite-loops">
+      Understand how RL agents can get trapped in infinite loops
+    </Card>
+    <Card title="Cycle detection" icon="magnifying-glass" href="/concepts/cycle-detection">
+      Learn how to detect and break out of cycles
+    </Card>
+    <Card title="Policy design" icon="brain" href="/concepts/policy-design">
+      Design better policies that avoid common pitfalls
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+    Demo features
+  </h2>
+  <p className="text-base dark:text-gray-400 text-gray-600 mb-8">
+    Interactive visualization with real-time state tracking
+  </p>
+
+  <CardGroup cols={2}>
+    <Card title="3×3 grid world" icon="grid" href="/demo/grid-world">
+      Navigate a simple environment with walls and goals
+    </Card>
+    <Card title="Interactive controls" icon="gamepad" href="/demo/controls">
+      Run, step, and reset the simulation at your own pace
+    </Card>
+    <Card title="Side-by-side comparison" icon="arrows-left-right" href="/demo/scenarios">
+      Compare scenarios with and without cycle detection
+    </Card>
+    <Card title="Real-time metrics" icon="chart-line" href="/demo/scenarios">
+      Track steps, rewards, and cycle escapes as they happen
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+    Prevention strategies
+  </h2>
+  <p className="text-base dark:text-gray-400 text-gray-600 mb-8">
+    Explore common solutions for avoiding infinite loops in RL systems
+  </p>
+
+  <CardGroup cols={2}>
+    <Card title="Max steps" icon="timer" href="/solutions/max-steps">
+      The simplest safeguard — terminate after N steps
+    </Card>
+    <Card title="Cycle detection" icon="shield" href="/solutions/cycle-detection">
+      Track state visits and force exploration on repetition
+    </Card>
+    <Card title="ε-greedy exploration" icon="dice" href="/solutions/epsilon-greedy">
+      Take random actions with probability ε
+    </Card>
+    <Card title="Other techniques" icon="lightbulb" href="/solutions/other-techniques">
+      Step penalties, curiosity, and discount factors
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-20 mb-16 max-w-5xl mx-auto px-6">
+  <div className="dark:bg-gradient-to-br dark:from-[#ff4d6a]/10 dark:to-[#60a5fa]/10 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border dark:border-[#27272a] border-gray-200 p-8 sm:p-12">
+    <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+      Ready to explore?
+    </h2>
+    <p className="text-base dark:text-gray-400 text-gray-600 mb-6 max-w-2xl">
+      Dive into the interactive demo and see cycle detection in action, or explore the source code to understand how it works.
+    </p>
+    <div className="flex flex-wrap gap-4">
+      <a 
+        href="/quickstart" 
+        className="inline-flex items-center px-6 py-3 rounded-lg bg-[#ff4d6a] text-white font-semibold hover:bg-[#ff4d6a]/90 transition-colors"
+      >
+        Get Started
+      </a>
+      <a 
+        href="/implementation/architecture" 
+        className="inline-flex items-center px-6 py-3 rounded-lg border dark:border-[#27272a] border-gray-200 dark:bg-white/5 bg-white dark:text-white text-gray-900 font-semibold dark:hover:border-[#ff4d6a] hover:border-[#ff4d6a] transition-colors"
+      >
+        View Implementation
+      </a>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,364 @@
+---
+title: "Cycle Detection"
+description: "Track state visits and force exploration when cycles are detected in your RL agent"
+---
+
+## What is Cycle Detection?
+
+**Cycle detection** is an active safeguard that monitors which states your agent visits. When it detects the agent has returned to the same state too many times, it intervenes by forcing a **random exploration action** instead of following the policy.
+
+Unlike max steps (which just stops execution), cycle detection actively **breaks loops** and helps the agent escape stuck states.
+
+<Tip>
+  Cycle detection is the technique that enables the right panel of the demo to succeed while the left panel gets stuck. It's the difference between "give up after N steps" and "actively escape the loop."
+</Tip>
+
+## How It Works
+
+The algorithm follows four steps:
+
+### 1. Track State History
+
+Maintain an array of all states the agent has visited:
+
+```javascript
+const history = [];
+
+// After each step
+history.push([currentRow, currentCol]);
+```
+
+### 2. Count Visits to Current State
+
+Before taking an action, count how many times you've been here:
+
+```javascript
+const visits = history.filter(h => 
+  h[0] === currentState[0] && h[1] === currentState[1]
+).length;
+```
+
+### 3. Compare Against Threshold
+
+If visits exceed the threshold, a cycle is detected:
+
+```javascript
+const CYCLE_THRESHOLD = 2;
+
+if (visits >= CYCLE_THRESHOLD) {
+  // Cycle detected! Take action.
+}
+```
+
+### 4. Force Exploration
+
+Instead of following the policy, choose a random alternative action:
+
+```javascript
+const policyAction = policy(currentState);
+const alternatives = [0, 1, 2, 3].filter(a => a !== policyAction);
+const explorationAction = alternatives[Math.floor(Math.random() * alternatives.length)];
+```
+
+<Note>
+  By excluding the policy's action from the random choice, you ensure the agent tries something **different** from what got it stuck.
+</Note>
+
+## Implementation in the Demo
+
+The RL Cycle Demo implements cycle detection in the right panel (green). Let's examine the actual source code.
+
+### Constants and State Tracking
+
+```javascript
+// From index.html:650
+const CYCLE_THRESHOLD = 2;
+
+// From index.html:654
+const state = {
+  2: { 
+    pos: [...START], 
+    history: [],  // Tracks all visited positions
+    escapes: 0,   // Counts forced explorations
+    // ...
+  }
+};
+```
+
+### The Core Detection Logic
+
+Here's the complete cycle detection implementation from the `doStep` function:
+
+```javascript
+// From index.html:767-779
+if (panelId === 2) {
+  // With cycle detection
+  const visits = s.history.filter(h => 
+    h[0] === s.pos[0] && h[1] === s.pos[1]
+  ).length;
+  
+  if (visits >= CYCLE_THRESHOLD) {
+    const original = badPolicy(s.pos);
+    const options = [0, 1, 2, 3].filter(a => a !== original);
+    action = options[Math.floor(Math.random() * options.length)];
+    escaped = true;
+    s.escapes++;
+    addLog(panelId, 
+      `<span class="cycle">⚠️ Ciclo en (${s.pos}) visitado ${visits}x → exploración forzada</span>`
+    );
+  } else {
+    action = badPolicy(s.pos);
+  }
+}
+```
+
+### History Recording
+
+Before applying any action, the current position is saved to history:
+
+```javascript
+// From index.html:784
+s.history.push([...s.pos]);
+```
+
+<Warning>
+  Always record the state **before** taking the action. If you record after, you won't detect cycles correctly because the visit count will be off by one.
+</Warning>
+
+## Why CYCLE_THRESHOLD = 2?
+
+The demo uses a threshold of **2 visits** to trigger cycle detection. This means:
+
+- **First visit**: Normal — agent is exploring
+- **Second visit**: Warning — might be a cycle
+- **Third visit**: Intervention — force exploration
+
+This conservative threshold catches cycles quickly while allowing the agent to revisit states occasionally (which can be valid in some navigation scenarios).
+
+```javascript
+// Example state history showing cycle detection
+history = [
+  [0,0],  // Start
+  [0,1],  // Move right
+  [1,1],  // Move down - WALL, bounce back to [0,1]
+  [0,1],  // First revisit to [0,1]
+  [1,1],  // Try down again - WALL, bounce back
+  [0,1],  // Second revisit to [0,1] - visits >= 2, CYCLE DETECTED!
+];
+```
+
+<Tip>
+  Lower thresholds (1-2) catch cycles faster but may trigger false positives. Higher thresholds (3-5) are more conservative but let the agent waste more steps before intervening.
+</Tip>
+
+## The Demo's Cycle Scenario
+
+Let's trace exactly what happens in the demo:
+
+### Without Cycle Detection (Left Panel)
+
+1. Agent reaches position **(1,2)** — just above the goal
+2. Bad policy says: move **left** (action 3)
+3. Agent moves to **(1,1)** — hits wall, bounces back to **(1,2)**
+4. Repeat step 2 forever... stuck in infinite loop
+5. Eventually hits MAX_STEPS and terminates
+
+### With Cycle Detection (Right Panel)
+
+1. Agent reaches position **(1,2)** first time
+2. Bad policy says: move **left** → bounces back to **(1,2)**
+3. Agent reaches **(1,2)** second time — **visits = 2, threshold reached!**
+4. Cycle detected! Exclude action 3 (left), choose randomly from actions 0 (up), 1 (right), or 2 (down)
+5. Agent picks action **2 (down)** randomly
+6. Moves to **(2,2)** — **goal reached!** 🎉
+
+<Note>
+  The forced exploration at step 4 gives the agent a chance to "accidentally" discover the correct action (down) that the policy failed to learn.
+</Note>
+
+## Memory Overhead
+
+Cycle detection requires storing the complete state history, which grows with episode length:
+
+```javascript
+// Memory usage scales with steps
+memoryUsed = stateSize × numberOfSteps
+
+// For demo's 3×3 grid:
+// State = [row, col] = 2 numbers = ~16 bytes
+// At MAX_STEPS = 30: ~480 bytes per episode
+
+// For complex environments:
+// State = 84×84 image = ~7KB
+// At 1000 steps: ~7MB per episode
+```
+
+<Warning>
+  For environments with large state spaces (images, high-dimensional observations), consider using **state hashing** or **position-only tracking** instead of storing complete states.
+</Warning>
+
+## Pros and Cons
+
+<AccordionGroup>
+  <Accordion title="✅ Advantages">
+    - **Active escape**: Breaks loops instead of just terminating
+    - **Targeted intervention**: Only acts when cycles detected
+    - **Discovery mechanism**: Random exploration can find solutions
+    - **Configurable sensitivity**: Adjust threshold for your domain
+    - **Maintains determinism**: Agent follows policy until stuck
+  </Accordion>
+
+  <Accordion title="❌ Disadvantages">
+    - **Memory overhead**: Must store complete state history
+    - **State comparison cost**: Filtering history on each step
+    - **Discrete states only**: Hard to detect cycles in continuous spaces
+    - **May not escape**: Random action might not find solution
+    - **Threshold tuning**: Requires domain knowledge
+  </Accordion>
+</AccordionGroup>
+
+## When to Use Cycle Detection
+
+### ✅ Good Fit
+
+- **Discrete state spaces**: Grids, graphs, finite state machines
+- **Short episodes**: History doesn't grow too large
+- **Deterministic policies**: Cycles are repeatable
+- **Deployment**: Need agents to escape bugs in production
+
+### ❌ Not Ideal
+
+- **Continuous state spaces**: Hard to detect exact revisits
+- **Long episodes**: Memory overhead becomes prohibitive
+- **Stochastic environments**: Random outcomes may mask cycles
+- **Training**: ε-greedy is simpler for exploration
+
+## Enhanced Implementation
+
+Here's a production-ready cycle detection class:
+
+```javascript
+class CycleDetector {
+  constructor(threshold = 2, stateComparator = null) {
+    this.threshold = threshold;
+    this.history = [];
+    this.escapes = 0;
+    this.compare = stateComparator || this.defaultCompare;
+  }
+
+  defaultCompare(state1, state2) {
+    return JSON.stringify(state1) === JSON.stringify(state2);
+  }
+
+  recordState(state) {
+    this.history.push(state);
+  }
+
+  detectCycle(currentState) {
+    const visits = this.history.filter(s => 
+      this.compare(s, currentState)
+    ).length;
+
+    return visits >= this.threshold;
+  }
+
+  forceExploration(policyAction, allActions) {
+    const alternatives = allActions.filter(a => a !== policyAction);
+    
+    if (alternatives.length === 0) {
+      return policyAction; // No alternatives available
+    }
+
+    this.escapes++;
+    const randomIndex = Math.floor(Math.random() * alternatives.length);
+    return alternatives[randomIndex];
+  }
+
+  reset() {
+    this.history = [];
+    this.escapes = 0;
+  }
+
+  getStats() {
+    return {
+      totalSteps: this.history.length,
+      escapes: this.escapes,
+      uniqueStates: new Set(this.history.map(s => JSON.stringify(s))).size
+    };
+  }
+}
+
+// Usage
+const detector = new CycleDetector(2);
+
+while (!done) {
+  detector.recordState(currentState);
+  
+  let action;
+  if (detector.detectCycle(currentState)) {
+    console.log('⚠️ Cycle detected, forcing exploration');
+    action = detector.forceExploration(
+      policy.getAction(currentState),
+      [0, 1, 2, 3]
+    );
+  } else {
+    action = policy.getAction(currentState);
+  }
+  
+  currentState = env.step(action);
+}
+
+console.log(detector.getStats());
+```
+
+## Combining with Other Techniques
+
+<Tip>
+  Cycle detection works best when combined with **max steps** for guaranteed termination. Even if cycle detection fails to find an escape, max steps ensures eventual termination.
+</Tip>
+
+```javascript
+const MAX_STEPS = 100;
+const detector = new CycleDetector(2);
+let steps = 0;
+
+while (!done && steps < MAX_STEPS) {
+  detector.recordState(state);
+  
+  // Primary safeguard: cycle detection
+  if (detector.detectCycle(state)) {
+    action = detector.forceExploration(policy(state), actions);
+  } else {
+    action = policy(state);
+  }
+  
+  state = env.step(action);
+  steps++;
+}
+
+// Secondary safeguard: max steps
+if (steps >= MAX_STEPS) {
+  console.warn('Max steps reached despite cycle detection');
+}
+```
+
+## Interactive Demo
+
+<Card title="See Cycle Detection in Action" icon="rotate" href="https://jhonzacipa.github.io/rl-cycle-demo/">
+  Watch the right panel (green) detect and escape the cycle at position (1,2) while the left panel stays stuck
+</Card>
+
+Pay attention to the **Escapes** counter in the stats — this shows how many times cycle detection intervened.
+
+## Key Takeaways
+
+- Cycle detection **actively breaks loops** by forcing exploration
+- Requires tracking **state history** to count visits
+- Threshold of **2-3 visits** typically works well
+- Best for **discrete state spaces** with deterministic policies
+- Always combine with **max steps** as backup protection
+- Memory overhead grows with episode length
+
+<Note>
+  View the complete implementation at [github.com/JhonZacipa/rl-cycle-demo](https://github.com/JhonZacipa/rl-cycle-demo) — see `index.html:767-779` for the cycle detection logic.
+</Note>

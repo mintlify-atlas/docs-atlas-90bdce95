@@ -1,80 +1,140 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with the RL Cycle Demo in minutes - access the live demo or run locally
 ---
 
-## Get started in three steps
+The RL Cycle Demo shows you how a reinforcement learning agent can get trapped in an infinite loop due to a flawed policy, and how cycle detection can rescue it.
 
-Get your documentation site running locally and make your first customization.
+## Access the live demo
 
-### Step 1: Set up your local environment
+Open the interactive visualization in your browser:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+**[https://jhonzacipa.github.io/rl-cycle-demo/](https://jhonzacipa.github.io/rl-cycle-demo/)**
+
+No installation or dependencies required. The demo runs entirely in your browser.
+
+## Understanding the environment
+
+When you open the demo, you'll see a **3×3 grid world** with:
+
+<CardGroup cols={3}>
+  <Card title="Agent" icon="robot">
+    Starts at position `(0,0)` - top-left corner
+  </Card>
+  <Card title="Goal" icon="trophy">
+    Located at position `(2,2)` - bottom-right corner
+  </Card>
+  <Card title="Wall" icon="brick-wall">
+    Blocks position `(1,1)` - center of the grid
+  </Card>
+</CardGroup>
+
+The agent follows a **bad policy** that contains a critical bug: at position `(1,2)` — just one step above the goal — it moves left instead of down, causing it to bounce against the wall forever.
+
+```javascript
+// index.html:658-666
+function badPolicy(pos) {
+  const key = `${pos[0]},${pos[1]}`;
+  const policy = {
+    '0,0': 1, '0,1': 1, '0,2': 2,
+    '1,2': 3, // ← BUG: should be 2 (down)
+    '1,0': 0,
+  };
+  return policy[key] ?? 1;
+}
+```
+
+## Running the simulations
+
+The demo presents two scenarios side-by-side:
+
+<Steps>
+  <Step title="No protection (left panel)">
+    Watch the agent follow the deterministic bad policy with no safeguards. It gets stuck in an infinite loop, bouncing against the wall at position `(1,1)`.
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    Click **▶ Ejecutar** (Run) to start the simulation automatically.
+  </Step>
+  
+  <Step title="Cycle detection (right panel)">
+    See the same bad policy enhanced with visit counting and forced exploration. When the agent visits a state more than the threshold, it takes a random alternative action to escape the cycle.
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```javascript
+    // index.html:768-781
+    const visits = s.history.filter(h => h[0] === s.pos[0] && h[1] === s.pos[1]).length;
+    if (visits >= CYCLE_THRESHOLD) {
+      const original = badPolicy(s.pos);
+      const options = [0, 1, 2, 3].filter(a => a !== original);
+      action = options[Math.floor(Math.random() * options.length)];
+      escaped = true;
+      s.escapes++;
+      addLog(panelId, `<span class="cycle">⚠️ Ciclo detected</span>`);
+    }
+    ```
+  </Step>
+  
+  <Step title="Compare the results">
+    The left panel shows the agent trapped in an infinite loop, while the right panel shows successful escape and goal achievement. Watch the stats counters and action logs to understand the difference.
+  </Step>
+</Steps>
 
-### Step 2: Deploy your changes
+## Using the controls
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+Each panel includes interactive controls:
+
+| Control | Description |
+|---------|-------------|
+| **▶ Ejecutar** | Execute the simulation automatically at the selected speed |
+| **→ Paso** | Advance one step at a time for detailed observation |
+| **↺ Reset** | Restart the simulation from the initial state |
+| **Speed Slider** | Adjust animation speed between 50ms and 800ms per step |
+
+<Note>
+The speed slider updates in real-time. Try slowing down to 800ms to carefully observe each decision the agent makes.
+</Note>
+
+## Monitoring the agent
+
+Watch these key metrics in each panel:
+
+- **Pasos** (Steps): Total number of actions taken
+- **Recompensa** (Reward): Cumulative reward (10 for goal, -0.1 per step)
+- **Repeticiones** (left panel): Number of blocked movements
+- **Escapes** (right panel): Number of times cycle detection triggered
+
+<Warning>
+The simulation has a maximum of 30 steps defined by `MAX_STEPS` (index.html:649). If the agent hasn't reached the goal by then, it stops automatically.
+</Warning>
+
+## Running locally
+
+You can run the demo on your own machine with zero dependencies:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/JhonZacipa/rl-cycle-demo.git
+    cd rl-cycle-demo
+    ```
+  </Step>
+  
+  <Step title="Open in browser">
+    ```bash
+    open index.html
+    ```
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    Or simply double-click `index.html` in your file explorer. The demo runs entirely with client-side JavaScript — no build step or server required.
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+The demo uses vanilla JavaScript with no external dependencies, making it perfect for educational purposes and offline exploration.
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Core Concepts" icon="book" href="/concepts/infinite-loops">
+    Learn about reinforcement learning policies and infinite loops
+  </Card>
+  <Card title="Cycle Detection" icon="rotate" href="/concepts/cycle-detection">
+    Understand how cycle detection rescues trapped agents
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

@@ -1,0 +1,268 @@
+---
+title: Comparing Scenarios
+description: Understand the difference between unprotected and cycle-detected agent behavior
+---
+
+The demo compares two scenarios side-by-side to illustrate the impact of cycle detection on RL agent behavior.
+
+## Panel 1: No Protection
+
+Panel 1 demonstrates what happens when an RL agent follows a flawed policy without any safety mechanisms.
+
+### Behavior Pattern
+
+```javascript
+function badPolicy(pos) {
+  const key = `${pos[0]},${pos[1]}`;
+  const policy = {
+    '0,0': 1, '0,1': 1, '0,2': 2,
+    '1,2': 3, // ← BUG: should be 2 (down)
+    '1,0': 0,
+  };
+  return policy[key] ?? 1;
+}
+```
+
+The policy contains a critical bug at position `(1,2)`: it instructs the agent to go **left** (action 3), but the wall at `(1,1)` blocks this movement. The agent becomes trapped:
+
+- Agent reaches `(1,2)` after 4 successful steps
+- Attempts to move left but collides with the wall
+- Stays at `(1,2)` indefinitely
+- Repeats the same failed action until `MAX_STEPS` is reached
+
+### Stats Tracked
+
+```javascript
+state[1] = {
+  pos: [...START],
+  steps: 0,        // Total actions taken
+  reward: 0,       // Cumulative reward (-0.1 per step, +10 for goal)
+  repeats: 0,      // Number of times action didn't change position
+  history: [],     // Array of visited positions
+  running: false,
+  done: false,
+  interval: null
+};
+```
+
+<Tabs>
+  <Tab title="Steps">
+    Counts every action the agent takes, regardless of whether it successfully moves. This counter stops at `MAX_STEPS = 30`.
+  </Tab>
+  
+  <Tab title="Recompensa (Reward)">
+    Starts at 0 and decreases by 0.1 for each step. Would increase by 10 if the goal were reached, but in Panel 1, the reward typically ends around -3.0 after 30 failed steps.
+  </Tab>
+  
+  <Tab title="Repeticiones (Repeats)">
+    **Panel 1 specific metric.** Increments whenever the agent's action doesn't change its position:
+    
+    ```javascript
+    if (!posChanged && panelId === 1) s.repeats++;
+    ```
+    
+    This clearly shows how many times the agent "banged its head against the wall."
+  </Tab>
+</Tabs>
+
+### Log Output Format
+
+The log displays each step with structured information:
+
+```javascript
+addLog(panelId, `<span class="step-num">[${s.steps}]</span> <span class="${logClass}">${ACTION_ARROWS[action]} → (${s.pos})</span>${stuckNote}`);
+```
+
+**Example log entries:**
+
+```
+[1] → → (0,1)
+[2] → → (0,2)
+[3] ↓ → (1,2)
+[4] ← → (1,2) (bloqueado)
+[5] ← → (1,2) (bloqueado)
+...
+[30] ← → (1,2) (bloqueado)
+🔴 Límite de 30 pasos alcanzado
+```
+
+Each entry shows:
+- `[N]`: Step number in gray
+- Arrow: Action taken (↑↓←→) in blue
+- `(r,c)`: Resulting position
+- `(bloqueado)`: Warning when position didn't change
+
+## Panel 2: With Cycle Detection
+
+Panel 2 uses the same flawed policy but adds cycle detection to escape infinite loops.
+
+### Detection Mechanism
+
+```javascript
+const CYCLE_THRESHOLD = 2;
+
+if (panelId === 2) {
+  const visits = s.history.filter(h => h[0] === s.pos[0] && h[1] === s.pos[1]).length;
+  if (visits >= CYCLE_THRESHOLD) {
+    const original = badPolicy(s.pos);
+    const options = [0, 1, 2, 3].filter(a => a !== original);
+    action = options[Math.floor(Math.random() * options.length)];
+    escaped = true;
+    s.escapes++;
+    addLog(panelId, `<span class="cycle">⚠️ Ciclo en (${s.pos}) visitado ${visits}x → exploración forzada</span>`);
+  }
+}
+```
+
+<Steps>
+  <Step title="Track Visits">
+    The system counts how many times the agent has visited its current state by checking the `history` array.
+  </Step>
+  
+  <Step title="Detect Cycle">
+    When a state is visited `CYCLE_THRESHOLD` (2) or more times, a cycle is detected.
+  </Step>
+  
+  <Step title="Force Exploration">
+    Instead of following the bad policy, the agent randomly selects a different action from the remaining options.
+  </Step>
+  
+  <Step title="Track Escapes">
+    The `escapes` counter increments each time cycle detection overrides the policy.
+  </Step>
+</Steps>
+
+### Stats Tracked
+
+```javascript
+state[2] = {
+  pos: [...START],
+  steps: 0,
+  reward: 0,
+  escapes: 0,      // Number of times cycle detection activated
+  history: [],
+  running: false,
+  done: false,
+  interval: null
+};
+```
+
+<Note>
+  Panel 2 tracks **Escapes** instead of **Repeats**. This metric shows how many times the cycle detection mechanism saved the agent from repeating a failed action.
+</Note>
+
+### Successful Navigation
+
+With cycle detection enabled, Panel 2 typically succeeds:
+
+```
+[1] → → (0,1)
+[2] → → (0,2)
+[3] ↓ → (1,2)
+[4] ← → (1,2) (bloqueado)
+[5] ⚠️ Ciclo en (1,2) visitado 2x → exploración forzada
+[5] ↓ → (2,2)
+🎉 ¡META ALCANZADA en 5 pasos!
+```
+
+The agent:
+- Detects the cycle at `(1,2)` on the second visit
+- Randomly chooses a new action (down instead of left)
+- Successfully moves to `(2,2)` and reaches the goal
+- Completes in ~5-6 steps instead of timing out at 30
+
+## Status Badges
+
+Both panels display a status badge that updates throughout execution:
+
+```javascript
+function setStatus(panelId, type, text) {
+  const badge = document.getElementById(`status${panelId}`);
+  badge.className = `status-badge ${type}`;
+  badge.innerHTML = `<div class="status-dot"></div><span>${text}</span>`;
+}
+```
+
+### Status Types
+
+<Tabs>
+  <Tab title="Idle">
+    ```css
+    .status-badge.idle {
+      background: rgba(136, 136, 160, 0.1);
+      color: var(--text-dim);
+    }
+    ```
+    
+    Displayed when the demo is waiting to start or has been paused. Text: "Esperando" or "Pausado".
+  </Tab>
+  
+  <Tab title="Running">
+    ```css
+    .status-badge.running {
+      background: rgba(96, 165, 250, 0.1);
+      color: var(--blue);
+      animation: blink 1s infinite;
+    }
+    ```
+    
+    Shown during execution with a pulsing animation. Text: "En ejecución...".
+  </Tab>
+  
+  <Tab title="Stuck">
+    ```css
+    .status-badge.stuck {
+      background: rgba(255, 77, 106, 0.1);
+      color: var(--accent);
+    }
+    ```
+    
+    Appears when Panel 1 reaches `MAX_STEPS` without finding the goal. Text: "Ciclo infinito".
+  </Tab>
+  
+  <Tab title="Success">
+    ```css
+    .status-badge.success {
+      background: rgba(74, 222, 128, 0.1);
+      color: var(--green);
+    }
+    ```
+    
+    Displayed when the agent reaches the goal. Text: "¡Meta! N pasos" where N is the step count.
+  </Tab>
+</Tabs>
+
+## Maximum Steps Limit
+
+Both scenarios enforce a step limit to prevent true infinite loops:
+
+```javascript
+const MAX_STEPS = 30;
+
+function doStep(panelId) {
+  const s = state[panelId];
+  if (s.done || s.steps >= MAX_STEPS) return false;
+  
+  // ... execute step ...
+  
+  if (s.steps >= MAX_STEPS) {
+    addLog(panelId, `<span class="warning">🔴 Límite de ${MAX_STEPS} pasos alcanzado</span>`);
+    setStatus(panelId, 'stuck', 'Ciclo infinito');
+  }
+}
+```
+
+<Note>
+  The `MAX_STEPS` constant is set to **30**. This limit ensures the demo terminates even in Panel 1 where the agent would otherwise loop forever. It's one of the most fundamental protections in RL training.
+</Note>
+
+## Key Differences Summary
+
+| Aspect | Panel 1: No Protection | Panel 2: With Cycle Detection |
+|--------|------------------------|--------------------------------|
+| **Outcome** | Gets stuck at `(1,2)` | Reaches goal at `(2,2)` |
+| **Steps** | Always 30 (max limit) | Typically 5-6 |
+| **Tracked Metric** | Repeats (~26) | Escapes (1-2) |
+| **Final Status** | "Ciclo infinito" | "¡Meta!" |
+| **Reward** | ~-3.0 | ~+9.5 |
+| **Learning** | Demonstrates the problem | Demonstrates the solution |

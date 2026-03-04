@@ -1,0 +1,468 @@
+---
+title: "ε-Greedy Exploration"
+description: "Add randomness to your policy to prevent deterministic cycles and improve exploration"
+---
+
+## What is ε-Greedy?
+
+**ε-Greedy** (epsilon-greedy) is a simple exploration strategy where the agent takes a **random action** with probability **ε** (epsilon), and follows its **policy** with probability **(1 - ε)**.
+
+This introduces controlled randomness that prevents deterministic cycles and helps the agent explore alternative paths.
+
+```javascript
+const epsilon = 0.1;  // 10% exploration rate
+
+function selectAction(state, policy) {
+  if (Math.random() < epsilon) {
+    // Explore: random action
+    return randomAction();
+  } else {
+    // Exploit: follow policy
+    return policy(state);
+  }
+}
+```
+
+<Tip>
+  Think of ε-greedy as "trust your policy 90% of the time, but be willing to experiment 10% of the time." This balance between exploitation and exploration is core to RL.
+</Tip>
+
+## How It Works
+
+The algorithm is dead simple:
+
+### 1. Generate Random Number
+
+On each step, roll a random number between 0 and 1:
+
+```javascript
+const roll = Math.random();  // Returns value in [0, 1)
+```
+
+### 2. Compare Against Epsilon
+
+If the roll is less than ε, explore randomly:
+
+```javascript
+const epsilon = 0.1;
+
+if (roll < epsilon) {
+  // 10% of the time
+  return exploreRandomly();
+}
+```
+
+### 3. Otherwise, Exploit Policy
+
+If the roll is ≥ ε, follow your learned policy:
+
+```javascript
+else {
+  // 90% of the time
+  return policy(state);
+}
+```
+
+<Note>
+  The name "ε-greedy" comes from being **greedy** (following the policy) most of the time, with **ε probability** of exploration.
+</Note>
+
+## Complete Implementation
+
+Here's a full working example:
+
+```javascript
+class EpsilonGreedyAgent {
+  constructor(policy, epsilon = 0.1, allActions = [0, 1, 2, 3]) {
+    this.policy = policy;
+    this.epsilon = epsilon;
+    this.allActions = allActions;
+    this.explorations = 0;
+    this.exploitations = 0;
+  }
+
+  selectAction(state) {
+    if (Math.random() < this.epsilon) {
+      // Explore: random action
+      this.explorations++;
+      const randomIndex = Math.floor(Math.random() * this.allActions.length);
+      return this.allActions[randomIndex];
+    } else {
+      // Exploit: follow policy
+      this.exploitations++;
+      return this.policy(state);
+    }
+  }
+
+  getStats() {
+    const total = this.explorations + this.exploitations;
+    return {
+      explorations: this.explorations,
+      exploitations: this.exploitations,
+      actualEpsilon: this.explorations / total,
+      expectedEpsilon: this.epsilon
+    };
+  }
+}
+
+// Usage
+const agent = new EpsilonGreedyAgent(myPolicy, 0.1);
+
+for (let step = 0; step < 100; step++) {
+  const action = agent.selectAction(currentState);
+  currentState = env.step(action);
+}
+
+console.log(agent.getStats());
+// Output: { explorations: 9, exploitations: 91, actualEpsilon: 0.09, ... }
+```
+
+## ε-Greedy vs Cycle Detection
+
+These techniques both introduce exploration, but work differently:
+
+| Aspect | ε-Greedy | Cycle Detection |
+|--------|----------|----------------|
+| **Trigger** | Random (every step) | Conditional (when cycle detected) |
+| **Frequency** | Constant (ε × steps) | Variable (only when stuck) |
+| **Randomness** | Fully random action | Random alternative action |
+| **Memory** | None | Requires state history |
+| **Phase** | Training only | Training or deployment |
+| **Purpose** | General exploration | Escape specific cycles |
+
+### Key Difference
+
+ε-greedy explores **proactively** whether needed or not, while cycle detection **reacts** to detected loops.
+
+<AccordionGroup>
+  <Accordion title="When ε-Greedy Would Help the Demo">
+    If the demo used ε-greedy with ε=0.1 instead of cycle detection:
+
+    1. Agent reaches position (1,2)
+    2. Policy says: move left
+    3. **90% chance**: Follows policy → moves left → hits wall → stuck (repeats)
+    4. **10% chance**: Explores randomly → might try down → reaches goal!
+
+    Eventually, after many episodes, ε-greedy would stumble upon the correct action. But in a single episode, it might take 10+ tries at (1,2) before randomly choosing "down".
+  </Accordion>
+
+  <Accordion title="Why Cycle Detection is Better for the Demo">
+    Cycle detection is **deterministic** and **targeted**:
+
+    1. Agent reaches (1,2) and tries left → stuck
+    2. Agent returns to (1,2) second time → **cycle detected**
+    3. Forces exploration excluding left → **guaranteed** to try something else
+    4. Reaches goal in same episode
+
+    This is why the demo uses cycle detection — it guarantees escape in a single episode.
+  </Accordion>
+</AccordionGroup>
+
+## Choosing the Right Epsilon
+
+The value of ε controls the exploration-exploitation trade-off:
+
+### Common Epsilon Values
+
+```javascript
+// High exploration (early training)
+const epsilon = 0.3;  // 30% random actions
+
+// Balanced (mid training)
+const epsilon = 0.1;  // 10% random actions - MOST COMMON
+
+// Low exploration (late training)
+const epsilon = 0.05; // 5% random actions
+
+// Greedy (deployment)
+const epsilon = 0.0;  // 0% random actions - pure exploitation
+```
+
+<Warning>
+  In the demo's scenario, setting ε=0 (fully deterministic) would recreate the infinite loop problem! The agent would get stuck just like the left panel.
+</Warning>
+
+## Epsilon Decay
+
+In practice, you often want high exploration early (when the policy is bad) and low exploration later (when the policy is good). This is called **epsilon decay**:
+
+```javascript
+class DecayingEpsilonGreedy {
+  constructor(policy, epsilonStart = 1.0, epsilonEnd = 0.01, decaySteps = 1000) {
+    this.policy = policy;
+    this.epsilonStart = epsilonStart;
+    this.epsilonEnd = epsilonEnd;
+    this.decaySteps = decaySteps;
+    this.currentStep = 0;
+  }
+
+  getCurrentEpsilon() {
+    if (this.currentStep >= this.decaySteps) {
+      return this.epsilonEnd;
+    }
+
+    // Linear decay
+    const decayAmount = (this.epsilonStart - this.epsilonEnd) / this.decaySteps;
+    return this.epsilonStart - (decayAmount * this.currentStep);
+  }
+
+  selectAction(state) {
+    const epsilon = this.getCurrentEpsilon();
+    this.currentStep++;
+
+    if (Math.random() < epsilon) {
+      return this.randomAction();
+    } else {
+      return this.policy(state);
+    }
+  }
+
+  randomAction() {
+    return Math.floor(Math.random() * 4);  // 0, 1, 2, or 3
+  }
+}
+
+// Usage
+const agent = new DecayingEpsilonGreedy(
+  myPolicy,
+  1.0,    // Start: 100% exploration
+  0.01,   // End: 1% exploration
+  10000   // Decay over 10,000 steps
+);
+
+// Step 0: epsilon = 1.0 (pure exploration)
+// Step 5000: epsilon = 0.505 (half exploration)
+// Step 10000+: epsilon = 0.01 (mostly exploitation)
+```
+
+<Tip>
+  Epsilon decay is standard in deep RL algorithms like DQN. Start with high exploration to discover good strategies, then gradually shift to exploitation as the policy improves.
+</Tip>
+
+## Pros and Cons
+
+<AccordionGroup>
+  <Accordion title="✅ Advantages">
+    - **Dead simple**: 3-line implementation
+    - **No memory overhead**: Stateless randomness
+    - **Universal**: Works with any policy, any environment
+    - **Tunable**: Adjust ε to control exploration amount
+    - **Prevents deterministic cycles**: Adds stochasticity
+    - **Proven**: Used in countless RL algorithms
+  </Accordion>
+
+  <Accordion title="❌ Disadvantages">
+    - **Blind exploration**: Random actions may be terrible
+    - **Wastes actions**: Explores even when policy is good
+    - **No escape guarantee**: Might not randomly find solution
+    - **Training only**: Usually disabled in deployment
+    - **Inefficient**: Explores states that are well-understood
+  </Accordion>
+</AccordionGroup>
+
+## When to Use ε-Greedy
+
+### ✅ Good Fit
+
+- **Training phase**: When learning a policy from scratch
+- **Small action spaces**: Random actions are reasonable
+- **Simple exploration**: Don't need sophisticated strategies
+- **Continuous learning**: Agent keeps improving over time
+- **Benchmark algorithms**: DQN, SARSA, Q-learning all use it
+
+### ❌ Not Ideal
+
+- **Deployment**: Usually want deterministic behavior
+- **Large action spaces**: Random actions very unlikely to help
+- **Safety-critical**: Can't afford random actions
+- **Sparse rewards**: Random exploration too inefficient
+- **Cycle escape**: Cycle detection is more targeted
+
+## Combining with Other Techniques
+
+You can use ε-greedy alongside other safeguards:
+
+```javascript
+function selectAction(state) {
+  // Layer 1: Cycle detection (highest priority)
+  if (cycleDetector.detectCycle(state)) {
+    return cycleDetector.forceExploration(policy(state), allActions);
+  }
+  
+  // Layer 2: ε-greedy exploration
+  if (Math.random() < epsilon) {
+    return randomAction();
+  }
+  
+  // Layer 3: Follow policy
+  return policy(state);
+}
+```
+
+<Note>
+  This combination gives you **targeted escape** (cycle detection) plus **general exploration** (ε-greedy), with guaranteed termination (max steps) as your final safeguard.
+</Note>
+
+## Enhanced Implementation with Logging
+
+```javascript
+class LoggedEpsilonGreedy {
+  constructor(policy, epsilon = 0.1) {
+    this.policy = policy;
+    this.epsilon = epsilon;
+    this.history = [];
+  }
+
+  selectAction(state) {
+    const roll = Math.random();
+    const shouldExplore = roll < this.epsilon;
+    
+    let action, actionType;
+    
+    if (shouldExplore) {
+      action = this.randomAction();
+      actionType = 'explore';
+    } else {
+      action = this.policy(state);
+      actionType = 'exploit';
+    }
+
+    // Log decision
+    this.history.push({
+      state,
+      action,
+      actionType,
+      roll,
+      epsilon: this.epsilon
+    });
+
+    return action;
+  }
+
+  randomAction() {
+    return Math.floor(Math.random() * 4);
+  }
+
+  getExplorationRate() {
+    const explorations = this.history.filter(h => h.actionType === 'explore').length;
+    return explorations / this.history.length;
+  }
+
+  printReport() {
+    console.log('\n=== ε-Greedy Report ===');
+    console.log(`Total actions: ${this.history.length}`);
+    console.log(`Expected ε: ${this.epsilon}`);
+    console.log(`Actual exploration rate: ${this.getExplorationRate().toFixed(3)}`);
+    
+    console.log('\nAction breakdown:');
+    this.history.forEach((h, i) => {
+      const symbol = h.actionType === 'explore' ? '🎲' : '🎯';
+      console.log(`  ${i}: ${symbol} ${h.actionType} → action ${h.action}`);
+    });
+  }
+}
+
+// Usage
+const agent = new LoggedEpsilonGreedy(myPolicy, 0.2);
+
+for (let i = 0; i < 20; i++) {
+  const action = agent.selectAction(state);
+  state = env.step(action);
+}
+
+agent.printReport();
+// Output:
+// === ε-Greedy Report ===
+// Total actions: 20
+// Expected ε: 0.2
+// Actual exploration rate: 0.200
+//
+// Action breakdown:
+//   0: 🎯 exploit → action 1
+//   1: 🎲 explore → action 3
+//   2: 🎯 exploit → action 2
+//   ...
+```
+
+## Real-World Example: DQN
+
+**Deep Q-Network (DQN)**, the famous algorithm that learned to play Atari games, uses ε-greedy exploration:
+
+```javascript
+class DQNAgent {
+  constructor(qNetwork) {
+    this.qNetwork = qNetwork;
+    
+    // Decay from 100% exploration to 1% over 1M frames
+    this.epsilonStart = 1.0;
+    this.epsilonEnd = 0.01;
+    this.epsilonDecay = 1000000;
+    this.frameNumber = 0;
+  }
+
+  selectAction(state) {
+    // Calculate current epsilon
+    const epsilon = Math.max(
+      this.epsilonEnd,
+      this.epsilonStart - (this.frameNumber / this.epsilonDecay)
+    );
+
+    this.frameNumber++;
+
+    // ε-greedy action selection
+    if (Math.random() < epsilon) {
+      // Explore: random action
+      return Math.floor(Math.random() * this.numActions);
+    } else {
+      // Exploit: action with highest Q-value
+      const qValues = this.qNetwork.predict(state);
+      return this.argmax(qValues);
+    }
+  }
+
+  argmax(array) {
+    return array.indexOf(Math.max(...array));
+  }
+}
+```
+
+<Note>
+  DQN's success in mastering Atari games demonstrated that ε-greedy, despite its simplicity, is sufficient for learning complex behaviors when combined with function approximation (neural networks).
+</Note>
+
+## Interactive Demo Comparison
+
+The RL Cycle Demo doesn't use ε-greedy — it uses cycle detection instead. But you can imagine how ε-greedy would perform:
+
+<CardGroup cols={2}>
+  <Card title="With ε-Greedy" icon="dice">
+    - Agent might escape loop randomly
+    - Requires multiple attempts/episodes
+    - Success depends on ε value
+    - No memory overhead
+  </Card>
+  <Card title="With Cycle Detection" icon="rotate">
+    - Agent escapes loop deterministically
+    - Succeeds in single episode
+    - Guaranteed to try alternative
+    - Requires state history
+  </Card>
+</CardGroup>
+
+<Tip>
+  For the demo's goal of "show cycle escape in one episode," cycle detection is superior. But for long-term learning across many episodes, ε-greedy would be more practical.
+</Tip>
+
+## Key Takeaways
+
+- ε-greedy adds **controlled randomness** to prevent deterministic cycles
+- Takes random action with **probability ε**, follows policy with **probability 1-ε**
+- Common ε values: **0.1 (10%)** for balanced exploration
+- Use **epsilon decay** to shift from exploration to exploitation over time
+- Best for **training phase**, often disabled in deployment
+- Simpler than cycle detection but less targeted
+- Core component of classic RL algorithms (DQN, SARSA, Q-learning)
+
+<Card title="Explore the Demo" icon="play" href="https://jhonzacipa.github.io/rl-cycle-demo/">
+  See how targeted cycle detection compares to what random ε-greedy exploration would achieve
+</Card>

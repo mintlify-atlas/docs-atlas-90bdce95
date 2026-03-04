@@ -1,0 +1,150 @@
+---
+title: Grid World Environment
+description: Learn about the 3×3 grid environment where the RL agent operates
+---
+
+The demo uses a simple **3×3 grid world** environment where an RL agent must navigate from a starting position to a goal while avoiding obstacles.
+
+## Grid Configuration
+
+The environment is defined by these constants in the source code:
+
+```javascript
+const SIZE = 3;
+const WALL = [1, 1];
+const GOAL = [2, 2];
+const START = [0, 0];
+```
+
+### Grid Positions
+
+Each cell in the grid is identified by coordinates `[row, col]`:
+
+<Steps>
+  <Step title="Starting Position">
+    The agent 🤖 begins at position `(0,0)` — the top-left corner of the grid.
+  </Step>
+  
+  <Step title="Wall Obstacle">
+    There's an impassable wall at position `(1,1)` — the center cell. When the agent attempts to move into the wall, it stays in its current position.
+  </Step>
+  
+  <Step title="Goal Position">
+    The goal 🏆 is located at position `(2,2)` — the bottom-right corner. Reaching this position completes the episode.
+  </Step>
+</Steps>
+
+## Available Actions
+
+The agent can take 4 possible actions in each state:
+
+```javascript
+const ACTIONS = {
+  0: '↑ arriba',  // Move up
+  1: '→ derecha', // Move right  
+  2: '↓ abajo',   // Move down
+  3: '← izquierda' // Move left
+};
+```
+
+Each action attempts to move the agent one cell in the specified direction. Movement is constrained by:
+
+- **Grid boundaries**: The agent cannot move outside the 3×3 grid
+- **Wall collision**: Moving into the wall at `(1,1)` leaves the agent in place
+
+## Visual Representation
+
+The grid uses distinct visual styling for different cell types:
+
+### Wall Cells
+
+```css
+.cell.wall {
+  background: #1e1e2e;
+  border-color: #333;
+}
+```
+
+Walls display a diagonal stripe pattern to indicate they're impassable.
+
+### Goal Cells
+
+```css
+.cell.goal {
+  background: rgba(74, 222, 128, 0.08);
+  border-color: rgba(74, 222, 128, 0.25);
+}
+```
+
+The goal cell has a green tint and displays the 🏆 trophy emoji.
+
+### Agent Position
+
+```css
+.cell.agent {
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.4);
+  box-shadow: 0 0 20px rgba(96, 165, 250, 0.15);
+}
+```
+
+The current agent position has a blue glow effect. When stuck in a cycle, it changes to red:
+
+```css
+.cell.agent.stuck {
+  background: rgba(255, 77, 106, 0.12);
+  border-color: rgba(255, 77, 106, 0.4);
+  animation: shake 0.4s ease-in-out;
+}
+```
+
+### Visited Cells
+
+```css
+.cell.visited::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(96, 165, 250, 0.25);
+}
+```
+
+Cells the agent has visited show a small dot marker, creating a visual trail of the agent's path through the grid.
+
+<Note>
+  Each cell displays its coordinates in the bottom-right corner (e.g., "0,0", "1,1", "2,2") to help you track the agent's position.
+</Note>
+
+## Environment Step Function
+
+The `envStep` function handles movement logic:
+
+```javascript
+function envStep(pos, action) {
+  let [r, c] = pos;
+  if (action === 0) r--;      // Up
+  else if (action === 1) c++; // Right
+  else if (action === 2) r++; // Down
+  else if (action === 3) c--; // Left
+
+  // Clamp to grid boundaries
+  r = Math.max(0, Math.min(SIZE - 1, r));
+  c = Math.max(0, Math.min(SIZE - 1, c));
+
+  // Wall collision detection
+  if (r === WALL[0] && c === WALL[1]) {
+    r = pos[0];
+    c = pos[1];
+  }
+
+  const done = (r === GOAL[0] && c === GOAL[1]);
+  const reward = done ? 10 : -0.1;
+
+  return { pos: [r, c], reward, done };
+}
+```
+
+This function returns:
+- `pos`: The new position after the action
+- `reward`: 10 for reaching the goal, -0.1 otherwise
+- `done`: `true` if the goal is reached

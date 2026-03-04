@@ -1,0 +1,225 @@
+---
+title: "Max Steps Limit"
+description: "The simplest and most essential safeguard against infinite loops in RL agents"
+---
+
+## What is Max Steps?
+
+**Max steps** is a hard limit on the number of actions an agent can take in a single episode. When the agent reaches this limit, the episode terminates automatically — whether the agent reached its goal or not.
+
+This is the **simplest and most essential** protection against infinite loops. Every RL system should implement this as a baseline safeguard.
+
+<Tip>
+  Think of max steps as a "circuit breaker" that prevents runaway execution and guarantees your agent will eventually stop, even with a completely broken policy.
+</Tip>
+
+## How It Works
+
+The logic is straightforward:
+
+1. Initialize a step counter at the start of each episode
+2. Increment the counter after each action
+3. Check if `steps >= MAX_STEPS`
+4. If true, terminate the episode immediately
+
+```javascript
+const MAX_STEPS = 30;
+let steps = 0;
+
+while (!done) {
+  // Take action
+  const action = policy(state);
+  const result = env.step(state, action);
+  
+  // Update state
+  state = result.nextState;
+  steps++;
+  
+  // Check termination conditions
+  if (result.done || steps >= MAX_STEPS) {
+    done = true;
+  }
+}
+```
+
+## Implementation in the Demo
+
+The RL Cycle Demo uses a `MAX_STEPS` constant set to **30 steps**.
+
+### Constant Definition
+
+```javascript
+// From index.html:649
+const MAX_STEPS = 30;
+```
+
+### Termination Check
+
+The `doStep` function checks this limit at the beginning of each step:
+
+```javascript
+// From index.html:760-762
+function doStep(panelId) {
+  const s = state[panelId];
+  if (s.done || s.steps >= MAX_STEPS) return false;
+  
+  // ... rest of step logic
+}
+```
+
+When the limit is reached, the demo logs a warning and marks the episode as complete:
+
+```javascript
+// From index.html:802-805
+if (s.steps >= MAX_STEPS) {
+  addLog(panelId, `<span class="warning">🔴 Límite de ${MAX_STEPS} pasos alcanzado</span>`);
+  setStatus(panelId, 'stuck', 'Ciclo infinito');
+}
+```
+
+<Note>
+  In the demo's left panel (no protection), the agent hits this limit while stuck at position (1,2), repeating the same failed action 30 times before being forced to stop.
+</Note>
+
+## Why 30 Steps?
+
+In the demo's 3×3 grid world, the optimal path from (0,0) to (2,2) requires approximately **4-6 steps**. Setting `MAX_STEPS = 30` provides:
+
+- **5-7x buffer** over the optimal solution
+- Room for exploration and suboptimal paths
+- Clear evidence of a cycle (repeating 20+ times is obviously wrong)
+
+<Warning>
+  Setting MAX_STEPS too low will terminate valid episodes prematurely. Setting it too high wastes resources on stuck agents. A good rule of thumb is **3-10x your expected optimal episode length**.
+</Warning>
+
+## Choosing Your Max Steps
+
+When implementing max steps in your own RL system, consider:
+
+### 1. Environment Complexity
+
+- **Simple grid world**: 10-50 steps may suffice
+- **Complex navigation**: 100-1000 steps might be needed
+- **Long-horizon tasks**: Could require 10,000+ steps
+
+### 2. Computational Budget
+
+```javascript
+// Example: Limit based on compute resources
+const MAX_STEPS_TRAINING = 1000;   // More exploration during training
+const MAX_STEPS_PRODUCTION = 100;  // Faster failures in production
+```
+
+### 3. Domain Requirements
+
+- **Real-time systems**: Lower limits for responsiveness
+- **Safety-critical**: Conservative limits to prevent damage
+- **Research**: Higher limits to observe emergent behavior
+
+## Pros and Cons
+
+<AccordionGroup>
+  <Accordion title="✅ Advantages">
+    - **Dead simple**: 3 lines of code to implement
+    - **Guaranteed termination**: No infinite loops possible
+    - **Zero memory overhead**: Just a counter
+    - **Universal**: Works with any policy, any environment
+    - **Predictable costs**: You know exactly how long episodes can run
+  </Accordion>
+
+  <Accordion title="❌ Disadvantages">
+    - **Arbitrary cutoff**: May stop valid long episodes
+    - **Doesn't escape loops**: Agent keeps repeating until limit
+    - **No learning signal**: Doesn't help agent avoid cycles
+    - **Tuning required**: Must choose appropriate limit for your domain
+  </Accordion>
+</AccordionGroup>
+
+## Beyond Max Steps
+
+While max steps prevents infinite loops, it doesn't help the agent **escape** loops or **learn** to avoid them. For those capabilities, you need additional techniques:
+
+- **Cycle Detection**: Actively breaks loops by forcing exploration ([learn more](/solutions/cycle-detection))
+- **ε-Greedy**: Adds randomness to prevent deterministic cycles ([learn more](/solutions/epsilon-greedy))
+- **Step Penalty**: Makes loops less rewarding during training ([learn more](/solutions/other-techniques))
+
+<Tip>
+  Use **max steps as your baseline**, then layer on other techniques as needed. You can combine max steps with cycle detection for both guaranteed termination AND active loop escape.
+</Tip>
+
+## Code Example: Enhanced Implementation
+
+Here's a more production-ready implementation with configurable limits:
+
+```javascript
+class EpisodeRunner {
+  constructor(maxSteps = 100, onMaxStepsReached = null) {
+    this.maxSteps = maxSteps;
+    this.onMaxStepsReached = onMaxStepsReached;
+  }
+
+  runEpisode(env, agent) {
+    let state = env.reset();
+    let steps = 0;
+    let totalReward = 0;
+    let done = false;
+
+    while (!done) {
+      // Take action
+      const action = agent.selectAction(state);
+      const result = env.step(action);
+
+      // Update tracking
+      state = result.nextState;
+      totalReward += result.reward;
+      steps++;
+
+      // Check termination
+      if (result.done) {
+        done = true;
+        console.log(`✅ Goal reached in ${steps} steps`);
+      } else if (steps >= this.maxSteps) {
+        done = true;
+        console.warn(`⚠️ Max steps (${this.maxSteps}) reached`);
+        
+        // Optional callback for custom handling
+        if (this.onMaxStepsReached) {
+          this.onMaxStepsReached({ steps, totalReward, state });
+        }
+      }
+    }
+
+    return { steps, totalReward, success: result.done };
+  }
+}
+
+// Usage
+const runner = new EpisodeRunner(30, (info) => {
+  console.log(`Agent got stuck at state ${info.state}`);
+});
+
+const result = runner.runEpisode(env, agent);
+```
+
+## Interactive Demo
+
+You can see max steps in action in both panels of the demo:
+
+1. **Left panel (No Protection)**: Agent repeats the same action at (1,2) until hitting the 30-step limit
+2. **Right panel (With Cycle Detection)**: Agent typically reaches the goal before the limit, but still protected if cycle detection fails
+
+<Card title="Try the Live Demo" icon="play" href="https://jhonzacipa.github.io/rl-cycle-demo/">
+  Run the simulation and watch the step counter reach MAX_STEPS = 30 in the left panel
+</Card>
+
+## Key Takeaways
+
+- Max steps is the **minimum protection** every RL agent needs
+- Set the limit to **3-10x your expected optimal episode length**
+- Combine with other techniques for active loop escape
+- Always implement max steps, even when using other safeguards
+
+<Note>
+  The RL Cycle Demo source code is available at [github.com/JhonZacipa/rl-cycle-demo](https://github.com/JhonZacipa/rl-cycle-demo) — see `index.html:649` for the MAX_STEPS implementation.
+</Note>

@@ -1,0 +1,97 @@
+---
+title: Infinite loops in reinforcement learning
+description: Understand how RL agents can get trapped in infinite loops and why this matters
+---
+
+## What are infinite loops in RL?
+
+In Reinforcement Learning, an agent follows a **policy** that maps states to actions. When a policy has flaws, the agent can repeat the same sequence of actions indefinitely without ever reaching its goal. This is a well-known failure mode with real implications for RL systems.
+
+<Note>
+An infinite loop occurs when an agent's policy causes it to revisit the same states repeatedly without making progress toward the goal.
+</Note>
+
+## How agents get stuck
+
+Agents get trapped in infinite loops when two conditions are met:
+
+1. **Deterministic policy**: The policy always returns the same action for a given state
+2. **No exploration**: The agent never deviates from the policy's prescribed actions
+
+When these conditions exist together, a single flaw in the policy can cause the agent to loop forever.
+
+## The bug in this demo
+
+The demo presents a 3×3 grid world where:
+- 🤖 The agent starts at position `(0,0)`
+- 🏆 The goal is at position `(2,2)`
+- 🧱 A wall blocks position `(1,1)`
+
+The agent's policy contains a deliberate bug at position `(1,2)` — just one step above the goal:
+
+```javascript
+function badPolicy(pos) {
+  const key = `${pos[0]},${pos[1]}`;
+  const policy = {
+    '0,0': 1, '0,1': 1, '0,2': 2,
+    '1,2': 3, // ← BUG: should be 2 (down)
+    '1,0': 0,
+  };
+  return policy[key] ?? 1;
+}
+```
+
+At position `(1,2)`, the policy returns action `3` (left) instead of action `2` (down). This causes the agent to:
+1. Move left from `(1,2)` to `(1,1)` — but that's the wall!
+2. Stay at `(1,2)` because the wall blocks movement
+3. Try to move left again from `(1,2)`
+4. Repeat forever
+
+<Warning>
+The agent is just one step away from the goal but can never reach it because of this single policy flaw.
+</Warning>
+
+## Real-world implications
+
+Infinite loops aren't just a theoretical problem. They occur in real RL systems when:
+
+- **Training policies have errors**: Even well-trained policies can have edge cases
+- **Environment changes**: A policy trained on one environment might loop in a modified version
+- **Sparse rewards**: When rewards are rare, agents can get stuck exploring the same areas
+- **Deterministic execution**: Production systems often use deterministic policies for reproducibility
+
+## Connection to LLM agents
+
+The same infinite loop problem applies to **LLM-based agents** that use tools:
+
+- An agent might repeatedly reformulate the same search query
+- An agent might retry a failed API call without changing parameters
+- An agent might loop through the same reasoning steps
+
+Frameworks like **LangChain** and **AutoGen** implement iteration limits for exactly this reason.
+
+<Tip>
+See the [LLM agents](/context/llm-agents) page to learn more about how this problem affects modern AI systems.
+</Tip>
+
+## Visualizing the problem
+
+The [live demo](https://jhonzacipa.github.io/rl-cycle-demo/) shows this problem in action. Watch the left panel ("Sin Protección") to see the agent get stuck:
+
+1. The agent successfully navigates from `(0,0)` to `(0,2)`
+2. Then moves down to `(1,2)` — one step from victory
+3. Gets stuck trying to move left forever
+4. The "Repeticiones" counter climbs as the agent repeats the same failed action
+
+The visual feedback makes it obvious when the agent is stuck, but in a real system without visualization, this problem could go unnoticed for a long time.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Cycle detection" icon="shield" href="/concepts/cycle-detection">
+    Learn how to detect and break out of infinite loops
+  </Card>
+  <Card title="Prevention strategies" icon="lightbulb" href="/solutions/overview">
+    Explore common solutions for avoiding infinite loops
+  </Card>
+</CardGroup>

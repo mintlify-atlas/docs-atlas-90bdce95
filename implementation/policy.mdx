@@ -1,0 +1,141 @@
+---
+title: "Policy Implementation"
+description: "Deep dive into the badPolicy function, the deliberate bug, and how to modify agent behavior"
+---
+
+## The badPolicy Function
+
+The agent's behavior is controlled by the `badPolicy` function, which maps each grid position to an action. Here's the complete implementation from the source code:
+
+```javascript
+function badPolicy(pos) {
+  const key = `${pos[0]},${pos[1]}`;
+  const policy = {
+    '0,0': 1, '0,1': 1, '0,2': 2,
+    '1,2': 3, // ← BUG: should be 2 (down)
+    '1,0': 0,
+  };
+  return policy[key] ?? 1;
+}
+```
+
+This function:
+1. Converts the position `[row, col]` to a string key like `"0,0"`
+2. Looks up the action in the policy mapping
+3. Returns the action, or defaults to `1` (right) if no mapping exists
+
+## Policy Mapping Object
+
+The policy is defined as a JavaScript object where keys are position strings and values are action numbers:
+
+```javascript
+const policy = {
+  '0,0': 1,  // At (0,0) → go right
+  '0,1': 1,  // At (0,1) → go right
+  '0,2': 2,  // At (0,2) → go down
+  '1,2': 3,  // At (1,2) → go left ⚠️ THIS IS THE BUG
+  '1,0': 0,  // At (1,0) → go up
+};
+```
+
+Positions not in the policy default to action `1` (right) due to the nullish coalescing operator `??`.
+
+## Action Encoding
+
+Actions are encoded as integers:
+
+```javascript
+const ACTIONS = { 0: '↑ arriba', 1: '→ derecha', 2: '↓ abajo', 3: '← izquierda' };
+const ACTION_ARROWS = { 0: '↑', 1: '→', 2: '↓', 3: '←' };
+```
+
+- **0** = Up (decrease row)
+- **1** = Right (increase column)
+- **2** = Down (increase row)
+- **3** = Left (decrease column)
+
+These numbers correspond directly to grid movement:
+
+| Action | Arrow | Movement | Grid Effect |
+|--------|-------|----------|-------------|
+| 0      | ↑     | Up       | `row--`     |
+| 1      | →     | Right    | `col++`     |
+| 2      | ↓     | Down     | `row++`     |
+| 3      | ←     | Left     | `col--`     |
+
+## The Deliberate Bug at (1,2)
+
+The bug is at position `(1,2)` where the policy says to go **left** (action 3):
+
+```javascript
+'1,2': 3, // ← BUG: should be 2 (down)
+```
+
+Why this causes a cycle:
+
+1. Agent reaches `(1,2)` from `(0,2)` by going down
+2. Policy says: go left (action 3)
+3. Agent tries to move to `(1,1)` but there's a **wall** at `(1,1)`
+4. Wall collision returns agent to `(1,2)`
+5. Agent is now at `(1,2)` again → policy says go left
+6. **Infinite loop**: `(1,2) → left → blocked by wall → (1,2) → repeat`
+
+The **correct action** should be `2` (down), which would move the agent to `(2,2)` — the goal.
+
+## Visualizing the Intended Path
+
+Here's what the policy **intends** to do:
+
+```
+Start (0,0) → right → (0,1) → right → (0,2)
+                                        ↓ down
+                                      (1,2) → left → WALL ⚠️ BUG
+```
+
+Here's what it **should** do:
+
+```
+Start (0,0) → right → (0,1) → right → (0,2)
+                                        ↓ down
+                                      (1,2)
+                                        ↓ down
+                                      (2,2) GOAL 🏆
+```
+
+## Example: Modifying the Policy
+
+You can fix the bug by changing the action at `(1,2)` from `3` to `2`:
+
+```javascript
+function badPolicy(pos) {
+  const key = `${pos[0]},${pos[1]}`;
+  const policy = {
+    '0,0': 1, '0,1': 1, '0,2': 2,
+    '1,2': 2, // ✅ FIXED: now goes down to goal
+    '1,0': 0,
+  };
+  return policy[key] ?? 1;
+}
+```
+
+With this change, the agent will reach the goal in approximately 5 steps:
+
+1. `(0,0)` → right → `(0,1)`
+2. `(0,1)` → right → `(0,2)`
+3. `(0,2)` → down → `(1,2)`
+4. `(1,2)` → down → `(2,2)` **GOAL!**
+
+<Note>
+You can also experiment by adding more mappings to the policy object, or changing the default action from `1` to another value. Try making the agent take a longer path, or create different types of cycles.
+</Note>
+
+## Why Use a Function Instead of a Lookup Table?
+
+The policy is implemented as a **function** rather than a pure lookup table for flexibility:
+
+- You can add **conditional logic** based on state
+- You can incorporate **randomness** or **exploration** strategies
+- You can **compute** actions dynamically instead of storing all mappings
+- It's easier to extend to **continuous state spaces** later
+
+For more complex policies (like neural networks), you would replace this function with a model that takes `pos` as input and returns an action probability distribution.

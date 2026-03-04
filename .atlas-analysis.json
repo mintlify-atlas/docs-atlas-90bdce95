@@ -1,0 +1,79 @@
+{
+  "projectType": "ai-ml",
+  "projectName": "RL Cycle Demo",
+  "projectDescription": "Interactive visualization demonstrating how reinforcement learning agents can get trapped in infinite loops with poorly designed policies and how cycle detection can rescue them.",
+  "theme": "aspen",
+  "primaryColor": "#ff4d6a",
+  "lightColor": "#60a5fa",
+  "darkColor": "#a78bfa",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Overview",
+        "pages": [
+          "introduction",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Concepts",
+        "pages": [
+          "concepts/infinite-loops",
+          "concepts/cycle-detection",
+          "concepts/policy-design"
+        ]
+      },
+      {
+        "group": "Demo Guide",
+        "pages": [
+          "demo/grid-world",
+          "demo/controls",
+          "demo/scenarios"
+        ]
+      },
+      {
+        "group": "Solutions",
+        "pages": [
+          "solutions/overview",
+          "solutions/max-steps",
+          "solutions/cycle-detection",
+          "solutions/epsilon-greedy",
+          "solutions/other-techniques"
+        ]
+      },
+      {
+        "group": "Implementation",
+        "pages": [
+          "implementation/architecture",
+          "implementation/policy",
+          "implementation/environment"
+        ]
+      },
+      {
+        "group": "Context",
+        "pages": [
+          "context/llm-agents",
+          "context/real-world-applications"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Interactive 3x3 grid world visualization",
+    "Side-by-side comparison of scenarios with and without cycle detection",
+    "Real-time state tracking and visit counting",
+    "Adjustable simulation speed controls",
+    "Visual feedback for stuck states and successful goal achievement",
+    "Demonstrates policy flaws and exploration strategies"
+  ],
+  "publicApiSurface": [
+    "badPolicy(pos) - Returns action for given position",
+    "envStep(pos, action) - Environment step function",
+    "doStep(panelId) - Execute single simulation step",
+    "runDemo(panelId) - Run continuous simulation",
+    "resetDemo(panelId) - Reset simulation state",
+    "renderGrid(panelId) - Render grid visualization",
+    "CYCLE_THRESHOLD constant - Visit count threshold",
+    "MAX_STEPS constant - Maximum steps limit"
+  ]
+}
